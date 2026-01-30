@@ -1,0 +1,110 @@
+# Dead Neuron Experiment Configuration - Depth Scaling Edition
+# Hydra-compatible YAML for Fashion-MNIST Dead Neuron Experiment
+#
+# Usage:
+#   py -3.12 scripts/run_experiment.py                           # Default: Hybrid, depth=18
+#   py -3.12 scripts/run_experiment.py use_plasticity=False      # Control: Backprop only
+#   py -3.12 scripts/run_experiment.py model.architecture.depth=50  # ResNet-50
+#
+# Multirun Sweep:
+#   py -3.12 scripts/run_experiment.py --multirun model.architecture.depth=6,12,18 use_plasticity=False,True
+
+defaults:
+  - _self_
+
+# ============================================================================
+# EXPERIMENT TOGGLES
+# ============================================================================
+use_plasticity: true  # true = Hybrid (STDP), false = Control (Backprop only)
+
+# ============================================================================
+# Sabotage Initialization - Creates the "Dead Neuron" Crisis
+# ============================================================================
+initialization:
+  method: "sabotage"  # "sabotage" or "normal"
+  std: 0.01           # Very low std ensures neurons can't reach threshold
+  mean: 0.0
+
+# ============================================================================
+# Model Configuration
+# ============================================================================
+model:
+  # LIF Neuron Parameters
+  neuron:
+    threshold: 1.0
+    beta: 0.9           # Membrane potential decay
+    spike_grad: "fast_sigmoid"
+    slope: 25.0
+    reset_mechanism: "subtract"
+  
+  # Plasticity Parameters (only applied when use_plasticity=True)
+  plasticity:
+    eta_stdp: 0.005      # STDP learning rate
+    tau_pre: 20.0
+    tau_post: 20.0
+    a_plus: 0.01         # LTP
+    a_minus: 0.005       # LTD
+    homeostasis:
+      enabled: true
+      target_rate: 0.1   # Target firing rate
+      tau_homeo: 1000.0
+  
+  # ResNet Architecture (Depth Scaling)
+  architecture:
+    # Supported depths: 6, 12, 18, 34, 50, 101
+    depth: 18            # Number of layers (ResNet-18 by default)
+    in_channels: 1       # Fashion-MNIST is grayscale
+    base_channels: 64    # First layer channels
+    num_classes: 10
+    num_steps: 25        # Time steps for spike simulation
+
+# ============================================================================
+# Data Configuration
+# ============================================================================
+data:
+  dataset: "fashion_mnist"
+  root: "./data"
+  batch_size: 64        # Reduced for deeper networks
+  num_workers: 4
+  pin_memory: true
+
+# ============================================================================
+# Training Configuration
+# ============================================================================
+training:
+  epochs: 30
+  learning_rate: 1e-3
+  weight_decay: 1e-4
+  optimizer: "adamw"
+  gradient_clip: 1.0
+  accumulate_grad_batches: 1
+  fast_dev_run: false
+  
+  # Loss
+  loss:
+    type: "ce_rate"
+  
+  # Scheduler
+  scheduler:
+    type: "cosine"
+    warmup_epochs: 3
+    min_lr: 1e-6
+
+# ============================================================================
+# WandB Logging
+# ============================================================================
+wandb:
+  project: "care-depth-scaling"
+  entity: null           # Set your WandB entity
+  log_model: true
+  log_freq: 50
+  tags: []
+
+# ============================================================================
+# Hydra Output Directories
+# ============================================================================
+hydra:
+  run:
+    dir: outputs/experiment/${now:%Y-%m-%d}/${now:%H-%M-%S}
+  sweep:
+    dir: multirun/experiment/${now:%Y-%m-%d}/${now:%H-%M-%S}

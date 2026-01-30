@@ -1,0 +1,4 @@
+- training.fast_dev_run=True
+- model.architecture.depth=50
+- data.num_workers=0
+- data.batch_size=32

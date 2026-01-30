@@ -1,0 +1,4 @@
+- arch_type=attention
+- depth=4
+- use_plasticity=False
+- epochs=10

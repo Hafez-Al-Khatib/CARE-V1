@@ -1,0 +1,54 @@
+use_plasticity: true
+initialization:
+  method: sabotage
+  std: 0.01
+  mean: 0.0
+model:
+  neuron:
+    threshold: 1.0
+    beta: 0.9
+    spike_grad: fast_sigmoid
+    slope: 25.0
+    reset_mechanism: subtract
+  plasticity:
+    eta_stdp: 0.005
+    tau_pre: 20.0
+    tau_post: 20.0
+    a_plus: 0.01
+    a_minus: 0.005
+    homeostasis:
+      enabled: true
+      target_rate: 0.1
+      tau_homeo: 1000.0
+  architecture:
+    depth: 18
+    in_channels: 1
+    base_channels: 64
+    num_classes: 10
+    num_steps: 25
+data:
+  dataset: fashion_mnist
+  root: ./data
+  batch_size: 64
+  num_workers: 0
+  pin_memory: true
+training:
+  epochs: 30
+  learning_rate: 0.001
+  weight_decay: 0.0001
+  optimizer: adamw
+  gradient_clip: 1.0
+  accumulate_grad_batches: 1
+  fast_dev_run: true
+  loss:
+    type: ce_rate
+  scheduler:
+    type: cosine
+    warmup_epochs: 3
+    min_lr: 1.0e-06
+wandb:
+  project: care-depth-scaling
+  entity: null
+  log_model: true
+  log_freq: 50
+  tags: []

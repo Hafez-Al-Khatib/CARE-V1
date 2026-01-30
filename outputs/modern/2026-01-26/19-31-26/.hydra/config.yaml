@@ -1,0 +1,23 @@
+arch_type: attention
+depth: 4
+embed_dim: 64
+num_heads: 4
+use_plasticity: false
+beta: 0.9
+threshold: 1.0
+slope: 25.0
+num_steps: 25
+init_method: sabotage
+init_std: 0.01
+eta_stdp: 0.005
+target_rate: 0.1
+epochs: 10
+learning_rate: 0.001
+weight_decay: 0.0001
+gradient_clip: 1.0
+fast_dev_run: false
+data:
+  root: ./data
+  batch_size: 64
+  num_workers: 0
+  pin_memory: true

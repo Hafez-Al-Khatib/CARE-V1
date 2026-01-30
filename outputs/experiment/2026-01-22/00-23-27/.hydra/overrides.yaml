@@ -1,0 +1,3 @@
+- training.fast_dev_run=True
+- training.epochs=1
+- data.num_workers=0

@@ -1,0 +1,47 @@
+model:
+  neuron:
+    threshold: 1.0
+    beta: 0.9
+    spike_grad: fast_sigmoid
+    slope: 25.0
+    reset_mechanism: subtract
+  plasticity:
+    enabled: true
+    eta_stdp: 0.001
+    tau_pre: 20.0
+    tau_post: 20.0
+    a_plus: 0.005
+    a_minus: 0.005
+  architecture:
+    input_dim: 784
+    hidden_dim: 256
+    output_dim: 10
+    num_steps: 25
+    reservoir_size: 512
+    sparsity_threshold: 0.1
+data:
+  dataset: nmnist
+  root: ./data
+  batch_size: 128
+  num_workers: 4
+  pin_memory: true
+training:
+  epochs: 100
+  learning_rate: 0.001
+  weight_decay: 0.0001
+  optimizer: adamw
+  scheduler:
+    type: cosine
+    warmup_epochs: 5
+    min_lr: 1.0e-06
+  gradient_clip: 1.0
+  accumulate_grad_batches: 1
+  loss:
+    type: mse_count
+    correct_rate: 0.8
+    incorrect_rate: 0.2
+wandb:
+  project: care-snn
+  entity: null
+  log_model: true
+  log_freq: 50

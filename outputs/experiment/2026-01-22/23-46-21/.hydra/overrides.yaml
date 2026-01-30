@@ -1,0 +1,4 @@
+- training.epochs=10
+- model.architecture.depth=18
+- use_plasticity=True
+- data.num_workers=0

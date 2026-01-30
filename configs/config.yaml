@@ -1,0 +1,69 @@
+# CARE (Continuously Adapting and Reorganizing Ecosystems) Configuration
+# Hydra-compatible YAML
+
+defaults:
+  - _self_
+
+model:
+  # LIF Neuron Parameters
+  neuron:
+    threshold: 1.0
+    beta: 0.9  # Membrane potential decay
+    spike_grad: "fast_sigmoid"  # Surrogate gradient type
+    slope: 25.0  # Surrogate gradient slope
+    reset_mechanism: "subtract"  # subtract or zero
+  
+  # Plasticity Parameters  
+  plasticity:
+    enabled: true
+    eta_stdp: 0.001  # STDP learning rate
+    tau_pre: 20.0  # Pre-synaptic trace decay (ms)
+    tau_post: 20.0  # Post-synaptic trace decay (ms)
+    a_plus: 0.005  # LTP magnitude
+    a_minus: 0.005  # LTD magnitude
+  
+  # Network Architecture
+  architecture:
+    input_dim: 784  # N-MNIST flattened
+    hidden_dim: 256
+    output_dim: 10
+    num_steps: 25  # Time steps for simulation
+    reservoir_size: 512
+    sparsity_threshold: 0.1  # Activation threshold for sparsity masking
+
+data:
+  dataset: "nmnist"  # nmnist, cifar10dvs
+  root: "./data"
+  batch_size: 128
+  num_workers: 4
+  pin_memory: true
+
+training:
+  epochs: 100
+  learning_rate: 1e-3
+  weight_decay: 1e-4
+  optimizer: "adamw"
+  scheduler:
+    type: "cosine"
+    warmup_epochs: 5
+    min_lr: 1e-6
+  gradient_clip: 1.0
+  accumulate_grad_batches: 1
+  
+  # Loss function
+  loss:
+    type: "mse_count"  # mse_count, ce_rate, ce_count
+    correct_rate: 0.8
+    incorrect_rate: 0.2
+
+wandb:
+  project: "care-snn"
+  entity: null  # Set your entity
+  log_model: true
+  log_freq: 50
+
+hydra:
+  run:
+    dir: outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+  sweep:
+    dir: multirun/${now:%Y-%m-%d}/${now:%H-%M-%S}

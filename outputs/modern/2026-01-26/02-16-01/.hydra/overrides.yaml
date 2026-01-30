@@ -1,0 +1,3 @@
+- arch_type=vgg
+- depth=11
+- fast_dev_run=True

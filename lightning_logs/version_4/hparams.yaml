@@ -1,0 +1,16 @@
+in_channels: 1
+conv1_channels: 32
+conv2_channels: 64
+kernel_size: 3
+num_classes: 10
+num_steps: 25
+beta: 0.9
+threshold: 1.0
+slope: 25.0
+learning_rate: 0.001
+weight_decay: 0.0001
+use_plasticity: false
+init_method: sabotage
+init_std: 0.01
+eta_stdp: 0.005
+target_rate: 0.1

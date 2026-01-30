@@ -1,0 +1,4 @@
+- arch_type=vgg
+- depth=8
+- use_plasticity=True
+- epochs=10

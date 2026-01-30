@@ -1,0 +1,3 @@
+- training.fast_dev_run=True
+- model.architecture.depth=18
+- data.num_workers=0
