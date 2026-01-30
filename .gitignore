@@ -1,0 +1,26 @@
+# Datasets
+data/
+datasets/
+
+# Logs and Checkpoints
+logs/
+checkpoints/
+*.ckpt
+wandb/
+
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.Python
+env/
+venv/
+.env
+
+# IDEs
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
