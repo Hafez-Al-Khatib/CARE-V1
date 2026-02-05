@@ -1,0 +1,10 @@
+{
+  "seed": 42,
+  "learning_rate": 0.001,
+  "batch_size": 64,
+  "epochs": 20,
+  "time_steps": 25,
+  "beta": 0.95,
+  "dataset": "fashion_mnist",
+  "depth": 18
+}

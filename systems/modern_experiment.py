@@ -35,6 +35,7 @@ except ImportError:
 from systems.experiment import (
     sabotage_init, normal_init, DeadNeuronCallback, CareLIFConv
 )
+from models.components.neuron import CareResNet
 
 
 # =============================================================================
@@ -571,6 +572,18 @@ class ModernArchExperiment(pl.LightningModule):
                 beta=beta,
                 threshold=threshold,
                 slope=slope,
+            )
+        elif arch_type == "resnet":
+            self.network = CareResNet(
+                depth=depth,
+                in_channels=in_channels,
+                num_classes=num_classes,
+                base_channels=64,
+                num_steps=num_steps,
+                beta=beta,
+                threshold=threshold,
+                slope=slope,
+                block_type="sew"
             )
         else:
             raise ValueError(f"Unknown arch_type: {arch_type}")

@@ -483,7 +483,7 @@ class CareLIFConv(nn.Module):
         with torch.no_grad():
             # Synaptic Scaling to boost weights when activity is low
             deviation = target_rate - self.activity_trace
-            boost = 1.0 + learning_rate * deviation
+            boost = 1.0 + learning_rate * deviation.view(-1, 1, 1, 1)
             self.conv.weight.mul_(boost.clamp(0.9, 1.1))
 
 # =============================================================================

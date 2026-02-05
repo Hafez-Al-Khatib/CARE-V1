@@ -1,0 +1,4 @@
+- arch_type=resnet
+- depth=18
+- use_plasticity=False
+- epochs=15
