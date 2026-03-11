@@ -436,15 +436,24 @@ class CareLIFConv(nn.Module):
         self.conv = nn.Conv2d(
             in_channels, out_channels, kernel_size=kernel_size, stride=stride, padding=padding, bias=False
         )
+        
+        self.bn = nn.BatchNorm2d(out_channels) # Gradient Rescue: Pre-Activation BN
+        
+        # Gradient Rescue: Learnable Threshold
+        learnable_thresh = nn.Parameter(torch.tensor(float(threshold), dtype=torch.float32))
+        
         self.lif = snn.Leaky(
-            beta=beta, threshold=threshold, spike_grad=surrogate.fast_sigmoid(slope=slope), init_hidden=False
+            beta=beta, threshold=learnable_thresh, spike_grad=surrogate.fast_sigmoid(slope=slope), init_hidden=False
         )
+        self.lif.threshold = learnable_thresh
         
         self.out_channels = out_channels
         self._spike_record: List[Tensor] = []
         self.return_current = return_current
 
         self.register_buffer('activity_trace', torch.zeros(out_channels))
+        self.register_buffer('max_membrane_trace', torch.zeros(out_channels)) 
+        self.register_buffer('mean_membrane_trace', torch.zeros(out_channels)) # Track mean for SNR
         self.activity_decay = 0.99
     
     def reset_spike_record(self) -> None:
@@ -459,32 +468,66 @@ class CareLIFConv(nn.Module):
         return torch.zeros(batch_size, self.out_channels, height, width, device=device)
     
     def forward(self, x: Tensor, mem: Tensor) -> Tuple[Tensor, Tensor]:
-        current = self.conv(x)
+        current = self.bn(self.conv(x))
         if self.return_current:
             spikes, mem = self.lif(current, mem)
-            self._record_activity(spikes)
+            self._record_activity(spikes, mem)
             return spikes, mem, current
         
         spikes, mem = self.lif(current, mem)
-        self._record_activity(spikes)
+        self._record_activity(spikes, mem)
         return spikes, mem
 
-    def _record_activity(self, spikes: Tensor) -> None:
+    def _record_activity(self, spikes: Tensor, mem: Tensor) -> None:
         self._spike_record.append(spikes.detach())
         with torch.no_grad():
             channel_activity = spikes.mean(dim=(0, 2, 3))
             self.activity_trace = (self.activity_decay * self.activity_trace + (1 - self.activity_decay) * channel_activity)
+            
+            # Track max and mean membrane potential for Dynamic SNR Gating
+            channel_max_mem = mem.amax(dim=(0, 2, 3))
+            channel_mean_mem = mem.abs().mean(dim=(0, 2, 3))
+            
+            self.max_membrane_trace = (self.activity_decay * self.max_membrane_trace + (1 - self.activity_decay) * channel_max_mem)
+            self.mean_membrane_trace = (self.activity_decay * self.mean_membrane_trace + (1 - self.activity_decay) * channel_mean_mem)
 
     def apply_homeostatic_update(
         self,
         target_rate: float = 0.1,
-        learning_rate: float = 0.001
+        learning_rate: float = 0.01 
     ) -> None:
         with torch.no_grad():
-            # Synaptic Scaling to boost weights when activity is low
             deviation = target_rate - self.activity_trace
-            boost = 1.0 + learning_rate * deviation.view(-1, 1, 1, 1)
-            self.conv.weight.mul_(boost.clamp(0.9, 1.1))
+            
+            # Dynamic SNR Gating:
+            # We compare Peak Activity (Max) vs Background Noise (Mean Abs).
+            # If Peak > 2.0 * Mean, it implies structured "Spikes" (features) exist.
+            # If Peak ~ Mean, it implies flat noise.
+            
+            # Avoid division by zero
+            safe_mean = self.mean_membrane_trace + 1e-6
+            snr = self.max_membrane_trace / safe_mean
+            
+            # Dynamic Gate: Soft sigmoid transition around SNR = 2.0
+            # If SNR > 2.0, Gate -> 1.0 (Amplify)
+            # If SNR < 2.0, Gate -> 0.0 (Suppress/Ignore)
+            stimulation_gate = torch.sigmoid((snr - 2.0) * 5.0)
+            
+            # Also require absolute minimal activity to avoid amplifying pure silence (0/0)
+            # e.g. Max must be > 0.01 (tiny, but non-zero)
+            absolute_gate = torch.sigmoid((self.max_membrane_trace - 0.01) * 100.0)
+            
+            final_gate = stimulation_gate * absolute_gate
+            
+            gate = torch.where(deviation > 0, final_gate, torch.ones_like(final_gate))
+            
+            update = learning_rate * (deviation * gate).view(-1, 1, 1, 1)
+            
+            sign_mask = torch.sign(self.conv.weight)
+            sign_mask[sign_mask == 0] = 1.0 
+            
+            self.conv.weight.add_(sign_mask * update)
+
 
 # =============================================================================
 # SEW Residual Block (Modern SOTA, used in my project)
@@ -555,6 +598,8 @@ class MSResNetBlock(nn.Module):
     
     Pros: Output is always binary spikes.
     Cons: Gradient must pass through surrogate in the residual path, causing vanishing gradients.
+    
+    CARE Enhancement: conv2 uses SNR-gated homeostasis (matching CareLIFConv).
     """
     expansion = 1 
     
@@ -570,7 +615,7 @@ class MSResNetBlock(nn.Module):
     ) -> None:
         super().__init__()
         
-        # First layer is standard
+        # First layer is standard CareLIFConv (has full SNR gating)
         self.conv1 = CareLIFConv(
             in_channels, out_channels,
             kernel_size=3, stride=stride, padding=1,
@@ -590,8 +635,10 @@ class MSResNetBlock(nn.Module):
             init_hidden=False,
         )
         
-        # Activity trace for conv2 (manual implementation since we split it)
+        # SNR-gated homeostasis buffers for conv2 (matching CareLIFConv)
         self.register_buffer('activity_trace_2', torch.zeros(out_channels))
+        self.register_buffer('max_membrane_trace_2', torch.zeros(out_channels))
+        self.register_buffer('mean_membrane_trace_2', torch.zeros(out_channels))
         self.activity_decay = 0.99
         self._spike_record_2: List[Tensor] = []
         
@@ -612,11 +659,23 @@ class MSResNetBlock(nn.Module):
     def apply_homeostatic_updates(self, target_rate: float, learning_rate: float) -> None:
         self.conv1.apply_homeostatic_update(target_rate, learning_rate)
         
-        # Manual update for conv2
+        # SNR-gated update for conv2 (matches CareLIFConv.apply_homeostatic_update)
         with torch.no_grad():
             deviation = target_rate - self.activity_trace_2
-            boost = 1.0 + learning_rate * deviation.view(-1, 1, 1, 1)
-            self.conv2.weight.mul_(boost.clamp(0.9, 1.1))
+            
+            # Dynamic SNR Gating
+            safe_mean = self.mean_membrane_trace_2 + 1e-6
+            snr = self.max_membrane_trace_2 / safe_mean
+            stimulation_gate = torch.sigmoid((snr - 2.0) * 5.0)
+            absolute_gate = torch.sigmoid((self.max_membrane_trace_2 - 0.01) * 100.0)
+            final_gate = stimulation_gate * absolute_gate
+            
+            gate = torch.where(deviation > 0, final_gate, torch.ones_like(final_gate))
+            update = learning_rate * (deviation * gate).view(-1, 1, 1, 1)
+            
+            sign_mask = torch.sign(self.conv2.weight)
+            sign_mask[sign_mask == 0] = 1.0
+            self.conv2.weight.add_(sign_mask * update)
             
     def init_mem2(self, batch_size: int, height: int, width: int, device: torch.device) -> Tensor:
         return torch.zeros(batch_size, self.conv2.out_channels, height, width, device=device)
@@ -640,20 +699,29 @@ class MSResNetBlock(nn.Module):
         # 2. Conv2
         cur2 = self.conv2(spk1)
         
-        # 3. Membrane Shortcut: Add identity to current (or directly to potential)
-        # In snnTorch Leaky, input is added to mem * beta. 
-        # Ideally: mem[t] = beta * mem[t-1] + cur2 + identity
+        # 3. Membrane Shortcut: Add identity to current
         total_input = cur2 + identity
         
         # 4. LIF2
         spk2, mem2 = self.lif2(total_input, mem2)
         
-        # Record output spikes
+        # Record output spikes and track membrane for SNR gating
         self._spike_record_2.append(spk2.detach())
         with torch.no_grad():
             self.activity_trace_2 = (
                 self.activity_decay * self.activity_trace_2 +
                 (1 - self.activity_decay) * spk2.mean(dim=(0, 2, 3))
+            )
+            # Track max and mean membrane potential for Dynamic SNR Gating
+            channel_max_mem = mem2.amax(dim=(0, 2, 3))
+            channel_mean_mem = mem2.abs().mean(dim=(0, 2, 3))
+            self.max_membrane_trace_2 = (
+                self.activity_decay * self.max_membrane_trace_2 +
+                (1 - self.activity_decay) * channel_max_mem
+            )
+            self.mean_membrane_trace_2 = (
+                self.activity_decay * self.mean_membrane_trace_2 +
+                (1 - self.activity_decay) * channel_mean_mem
             )
             
         return spk2, mem1, mem2
@@ -688,11 +756,11 @@ class CareResNet(nn.Module):
         self.slope = slope
         
         # Config
-        if depth not in [18, 34, 50]: 
-            # Simplified for this snippet, can expand
+        if depth not in [6, 18, 34, 50]: 
             depth = 18
         
         layers_cfg = {
+            6:  [1, 1, 1, 1],
             18: [2, 2, 2, 2],
             34: [3, 4, 6, 3],
             50: [3, 4, 6, 3]
@@ -708,14 +776,26 @@ class CareResNet(nn.Module):
         else:
             raise ValueError("block_type must be 'sew' or 'ms'")
 
-        self.expansion = 1 # Keeping simple for now, can be 4 for bottleneck
+        self.expansion = 1
         
-        # Stem
-        self.stem = CareLIFConv(
-            in_channels, base_channels,
-            kernel_size=7, stride=2, padding=3,
-            beta=beta, threshold=threshold, slope=slope
-        )
+        # Stem: Use small 3x3 stride-1 for CIFAR-sized inputs, 7x7 stride-2 for ImageNet
+        self.cifar_mode = (in_channels <= 3 and base_channels <= 64)
+        if base_channels <= 32:
+            # CIFAR stem: preserve spatial resolution
+            self.stem = CareLIFConv(
+                in_channels, base_channels,
+                kernel_size=3, stride=1, padding=1,
+                beta=beta, threshold=threshold, slope=slope
+            )
+            self.stem_stride = 1
+        else:
+            # ImageNet stem: downsample aggressively
+            self.stem = CareLIFConv(
+                in_channels, base_channels,
+                kernel_size=7, stride=2, padding=3,
+                beta=beta, threshold=threshold, slope=slope
+            )
+            self.stem_stride = 2
         
         self.in_channels = base_channels
         
@@ -740,11 +820,10 @@ class CareResNet(nn.Module):
     
     def _make_layer(self, block_class, out_channels, num_blocks, stride):
         downsample = None
-        if stride!= 1 or self.in_channels!= out_channels * self.expansion:
-            # Standard conv downsample
+        if stride != 1 or self.in_channels != out_channels * self.expansion:
             downsample = nn.Sequential(
                 nn.Conv2d(self.in_channels, out_channels * self.expansion, kernel_size=1, stride=stride, bias=False),
-                # Note: No BN for pure SNN purity in this experiment, or add BN if standard
+                nn.BatchNorm2d(out_channels * self.expansion),
             )
         
         blocks = []
@@ -786,13 +865,11 @@ class CareResNet(nn.Module):
         device = x.device
         self.reset_spike_records()
         
-        # Dimensions calc (simplified)
-        # 32x32 -> Stem(s2) -> 16x16
-        # L1(s1) -> 16x16
-        # L2(s2) -> 8x8
-        # L3(s2) -> 4x4
-        # L4(s2) -> 2x2
-        h, w = x.shape[2]//2, x.shape[3]//2 # After stem
+        # After stem spatial dimensions
+        if self.stem_stride == 2:
+            h, w = x.shape[2] // 2, x.shape[3] // 2
+        else:
+            h, w = x.shape[2], x.shape[3]
         
         # Init states
         stem_mem = self.stem.init_state(batch_size, h, w, device)

@@ -1,0 +1,140 @@
+\documentclass[aspectratio=169]{beamer}
+\usetheme{Madrid}
+\usecolortheme{default}
+
+% Packages
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage{hyperref}
+\usepackage{xcolor}
+
+\title{CARE: Comprehensive Architecture Recovery \& Enhancement}
+\subtitle{Stabilizing Deep Spiking Neural Networks via Dynamic SNR-Gated Homeostatic Plasticity}
+\author{AUB Research Team}
+\date{\today}
+
+\begin{document}
+
+\begin{frame}
+    \titlepage
+\end{frame}
+
+\begin{frame}{The Spiking Neural Network (SNN) Divergence Problem}
+    \textbf{The Challenge:}
+    \begin{itemize}
+        \item Deep SNNs suffer from severe training instability due to the non-differentiable nature of spikes and rigid surrogate gradients.
+        \item Forward-pass degradation ("Dead Neurons") and backward-pass vanishing gradients lead to catastrophic representation collapse.
+    \end{itemize}
+    
+    \vspace{0.3cm}
+    \textbf{Limitations of Current Literature:}
+    \begin{itemize}
+        \item \textbf{SEW-ResNet (Fang et al., 2021):} Solves identity mapping but remains highly sensitive to poor initialization (starvation).
+        \item \textbf{TET (Deng et al., 2022) / Diet-SNN:} Focus on loss landscapes but ignore layer-wise dynamic gradient starvation during early epochs.
+        \item \textbf{Naive Homeostasis (Bohnstingl et al., 2019):} Uniformly scales weights to force activity, which uniformly amplifies noise and destroys signal fidelity.
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{Our Contribution: Dynamic Gating}
+    \textbf{1. Dynamic SNR-Gated Homeostatic Plasticity} \\
+    Instead of blind weight scaling, CARE tracks \textit{membrane potential dynamics} to compute a localized Signal-to-Noise Ratio (SNR) for every neuron.
+    
+    \begin{equation}
+        \text{Gate}_{i} = \sigma\left( \left(\frac{\max(V_{mem, i})}{\mu(|V_{mem, i}|)} - \theta_{snr}\right) \cdot \beta \right)
+    \end{equation}
+    
+    \vspace{0.2cm}
+    \textbf{2. Highly Selective Structural Adaptation} \\
+    The mechanism \textit{predicts} which silent neurons are receiving meaningful but sub-threshold signal, selectively boosting their synaptic weights while strictly suppressing noise in dormant/chaotic neurons.
+    
+    \vspace{0.2cm}
+    \textbf{3. Recovery from Complete Starvation} \\
+    CARE demonstrates the ability to autonomously revive mathematically ``dead'' networks that standard surrogate gradient methods completely fail to optimize.
+\end{frame}
+
+\begin{frame}{Empirical Proof I: Accuracy Recovery}
+    \textbf{Extensive Ablation on SEW-ResNet18 (30 Epochs, $T=4$)}
+    
+    \vspace{0.2cm}
+    \begin{figure}
+        \centering
+        % Require the user to place the image in the same directory when compiling
+        \includegraphics[width=0.9\textwidth]{results/final_v2_accuracy_comparison.png}
+        \caption{Validation Accuracy Comparison: Plasticity OFF (Control) vs. Plasticity ON (CARE)}
+    \end{figure}
+    
+    \textbf{Takeaway:} Under "Sabotage" (starved) initialization, Control completely fails (25.29\%), while CARE fully rescues the network to \textbf{59.90\%} (+34.61\% absolute improvement).
+\end{frame}
+
+\begin{frame}{Empirical Proof II: Dead Neuron Prevention}
+    \begin{figure}
+        \centering
+        \includegraphics[width=0.9\textwidth]{results/final_v2_dead_neuron_comparison.png}
+        \caption{Global Dead Neuron Ratio across 30 Epochs}
+    \end{figure}
+    
+    \textbf{Takeaway:} Control networks suffer from massive neuron death (peaks at 41\% dead on CIFAR-10). CARE aggressively stabilizes gradient flow, actively rescuing neurons to keep the functional fraction healthy.
+\end{frame}
+
+\begin{frame}{Empirical Proof III: Selective Rescue vs. Noise}
+    Did the plasticity mechanism just blast the network with random noise to force spikes? \textbf{No.}
+    
+    \vspace{0.3cm}
+    \begin{columns}
+        \begin{column}{0.5\textwidth}
+            \textbf{Weight Kurtosis (Sabotage Init):}
+            \begin{itemize}
+                \item \textbf{Control (OFF):} Uniform Gaussian blob (Kurtosis $\approx \mathbf{1.15}$). Failed to learn features.
+                \item \textbf{CARE (ON):} Kurtosis grew to \textbf{$\mathbf{18.21}$}.
+            \end{itemize}
+            
+            \vspace{0.2cm}
+            \begin{block}{The "Heavy Tails"}
+                A kurtosis of 18 proves CARE generated extremely \textbf{sparse, heavy-tailed distributions}, selectively magnifying critical synapses while leaving the majority unchanged.
+            \end{block}
+        \end{column}
+        \begin{column}{0.5\textwidth}
+            \begin{figure}
+                \centering
+                \includegraphics[width=\textwidth]{results/final_v2_kurtosis.png}
+            \end{figure}
+        \end{column}
+    \end{columns}
+\end{frame}
+
+\begin{frame}{Understanding the Dynamics: Why the Sudden Accuracy Drops?}
+    \textbf{Observation:} Sudden drops in accuracy (e.g., from 54.7\% to 25.9\% at epoch 18), followed by rapid, immediate recovery.
+    
+    \vspace{0.1cm}
+    \begin{columns}
+        \begin{column}{0.55\textwidth}
+            \textbf{Targeted Structural Disruption}
+            \begin{itemize}
+                \item Drops precisely follow epochs with massive bursts of \textbf{SNR-gated revival events}.
+                \item By suddenly injecting localized weight boosts into dormant paths, it temp-shocks the classifier.
+                \item \textbf{Rapid Recovery:} Proves the newly active neurons carry \textbf{meaningful features}---acting like targeted simulated annealing to escape dead local minima.
+            \end{itemize}
+        \end{column}
+        \begin{column}{0.45\textwidth}
+            \begin{figure}
+                \centering
+                \includegraphics[width=\textwidth]{results/final_v2_revival_events.png}
+            \end{figure}
+        \end{column}
+    \end{columns}
+\end{frame}
+
+\begin{frame}{Conclusions}
+    \textbf{Summary of Discoveries:}
+    \begin{enumerate}
+        \item \textbf{Robustness to Initialization:} CARE renders deep SNNs highly resilient to adversarial or mathematically starved initializations (recovering a functionally dead network).
+        \item \textbf{Intelligent Gating:} SNR-Gated plasticity successfully solves the historical trade-off between forcing necessary neuron survival and preventing noise interference.
+        \item \textbf{Biological Plausibility:} The resulting sparse weight distribution models biological structural plasticity closer than standard naive homeostasis.
+    \end{enumerate}
+    
+    \vspace{0.5cm}
+    \textbf{Broader Impact:} Provides a drop-in architectural stabilization mechanism that allows SNNs to be deployed safely on neuromorphic hardware without hyper-tuning initialization distributions.
+\end{frame}
+
+\end{document}

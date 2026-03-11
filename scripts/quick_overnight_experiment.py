@@ -53,17 +53,8 @@ class ComprehensiveNeuronMonitor(Callback):
         self.epoch_spikes.clear()
         
     def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
-        """Collect spike data during training."""
-        # Get spike records from network layers
-        if hasattr(pl_module, 'network'):
-            network = pl_module.network
-            if hasattr(network, 'get_spike_records'):
-                records = network.get_spike_records()
-                for name, spikes in records.items():
-                    if isinstance(spikes, torch.Tensor):
-                        # Store firing rate per neuron
-                        firing_rate = spikes.float().mean(dim=0)  # Average over batch
-                        self.epoch_spikes[name].append(firing_rate.detach().cpu())
+        """Skip spike collection to avoid OOM - use weight-based dead neuron detection instead."""
+        pass  # Disable spike recording to avoid CUDA OOM
     
     def on_train_epoch_end(self, trainer, pl_module):
         """Compute comprehensive metrics at epoch end."""
@@ -76,56 +67,29 @@ class ComprehensiveNeuronMonitor(Callback):
         total_revived = 0
         total_died = 0
         
-        # Analyze spike records
-        for name, spike_list in self.epoch_spikes.items():
-            if len(spike_list) == 0:
-                continue
-                
-            # Average firing rate across all batches
-            avg_firing = torch.stack(spike_list).mean(dim=0)
-            while avg_firing.dim() > 1:
-                avg_firing = avg_firing.mean(dim=-1)
-            
-            num_neurons = avg_firing.numel()
-            dead_mask = (avg_firing == 0)
-            near_dead_mask = (avg_firing < 0.01) & ~dead_mask
-            
-            num_dead = dead_mask.sum().item()
-            num_near_dead = near_dead_mask.sum().item()
-            
-            # Track revivals and deaths
-            if name in self.prev_dead_masks:
-                prev_dead = self.prev_dead_masks[name]
-                if prev_dead.shape == dead_mask.shape:
-                    revived = (prev_dead & ~dead_mask).sum().item()
-                    died = (~prev_dead & dead_mask).sum().item()
-                else:
-                    revived, died = 0, 0
-            else:
-                revived, died = 0, 0
-            
-            self.prev_dead_masks[name] = dead_mask.clone()
-            
-            # Store per-layer metrics
-            metrics[f'{name}_dead_ratio'] = num_dead / num_neurons if num_neurons > 0 else 0
-            metrics[f'{name}_near_dead_ratio'] = num_near_dead / num_neurons if num_neurons > 0 else 0
-            metrics[f'{name}_firing_rate_mean'] = avg_firing.mean().item()
-            metrics[f'{name}_firing_rate_std'] = avg_firing.std().item()
-            metrics[f'{name}_revived'] = revived
-            metrics[f'{name}_died'] = died
-            
-            total_neurons += num_neurons
-            total_dead += num_dead
-            total_near_dead += num_near_dead
-            total_revived += revived
-            total_died += died
+        # Skip spike-based analysis to avoid OOM, use weight-based metrics instead
         
-        # Global dead neuron metrics
-        metrics['global_dead_ratio'] = total_dead / total_neurons if total_neurons > 0 else 0
-        metrics['global_near_dead_ratio'] = total_near_dead / total_neurons if total_neurons > 0 else 0
-        metrics['global_revived'] = total_revived
-        metrics['global_died'] = total_died
-        metrics['total_neurons'] = total_neurons
+        # Global dead neuron metrics (from weight analysis)
+        metrics['global_dead_ratio'] = 0  # Will update based on weights
+        metrics['global_near_dead_ratio'] = 0
+        metrics['global_revived'] = 0
+        metrics['global_died'] = 0
+        metrics['total_neurons'] = 0
+        
+        # Count dead neurons based on near-zero weights
+        dead_count = 0
+        total_count = 0
+        for name, param in pl_module.named_parameters():
+            if 'weight' in name and param.dim() >= 2:
+                # Flatten all dims except first (output channels) and compute norm
+                flat_param = param.data.view(param.size(0), -1)
+                weight_norms = flat_param.norm(dim=1)
+                dead_count += (weight_norms < 0.01).sum().item()
+                total_count += weight_norms.numel()
+        
+        if total_count > 0:
+            metrics['global_dead_ratio'] = dead_count / total_count
+            metrics['total_neurons'] = total_count
         
         # Weight statistics
         weight_norms = []
@@ -179,11 +143,11 @@ class ComprehensiveNeuronMonitor(Callback):
         }
 
 
-# Configuration
+# Configuration - Reduced batch size to avoid OOM
 CONFIG = {
     'seed': 42,
     'learning_rate': 1e-3,
-    'batch_size': 64,
+    'batch_size': 32,  # Reduced from 64
     'epochs': 20,
     'time_steps': 25,
     'beta': 0.95,
@@ -202,17 +166,18 @@ def get_dataloaders():
     train_ds = datasets.FashionMNIST('data', train=True, download=True, transform=transform)
     test_ds = datasets.FashionMNIST('data', train=False, download=True, transform=transform)
     
+    # Use num_workers=0 on Windows to avoid multiprocessing memory issues
     train_loader = DataLoader(
         train_ds, 
         batch_size=CONFIG['batch_size'], 
         shuffle=True, 
-        num_workers=4,
+        num_workers=0,
         pin_memory=True
     )
     test_loader = DataLoader(
         test_ds, 
         batch_size=CONFIG['batch_size'], 
-        num_workers=4,
+        num_workers=0,
         pin_memory=True
     )
     
