@@ -61,7 +61,7 @@ def parse_args():
     parser.add_argument('--dataset', type=str, default='fashion_mnist',
                         choices=['fashion_mnist', 'cifar10', 'cifar100', 'tiny_imagenet', 'imagenet'])
     parser.add_argument('--arch', type=str, default='resnet',
-                        choices=['resnet', 'vgg', 'plain', 'attention'],
+                        choices=['resnet', 'vgg', 'plain'],
                         help='Architecture family')
     parser.add_argument('--depth', type=int, default=18)
     parser.add_argument('--init', type=str, default='sabotage', choices=['normal', 'sabotage'])
@@ -75,14 +75,12 @@ def parse_args():
     parser.add_argument('--output_dir', type=str, default='results/final_v2', help='Base output directory')
     parser.add_argument('--base_channels', type=int, default=64, help='Base channel width (use 32 for CIFAR)')
     parser.add_argument('--seed', type=int, default=42, help='Random seed')
+    parser.add_argument('--init_std', type=float, default=None, help='Init std override (default: 0.001 sabotage, 0.05 normal)')
     parser.add_argument("--target_rate", type=float, default=0.02, help="Target firing rate for homeostasis")
     parser.add_argument("--weight_decay", type=float, default=1e-4, help="Weight decay for optimizer")
     parser.add_argument('--lr', type=float, default=1e-3, help='Learning rate')
     parser.add_argument('--num_workers', type=int, default=2, help='DataLoader workers')
     parser.add_argument('--data_dir', type=str, default='data', help='Root directory for datasets')
-    # Architecture-specific
-    parser.add_argument('--embed_dim', type=int, default=64, help='Embedding dim for attention arch')
-    parser.add_argument('--num_heads', type=int, default=4, help='Number of attention heads')
     # Ablation parameters
     parser.add_argument('--homeo_target', type=str, default='gamma', choices=['gamma', 'weight', 'both'],
                         help='Which parameter receives homeostatic updates')
@@ -92,7 +90,18 @@ def parse_args():
     return parser.parse_args()
 
 
-def get_dataloaders(dataset_name, batch_size, num_workers=2, data_dir='data'):
+def _worker_init_fn(worker_id: int, base_seed: int = 42):
+    """Initialize worker random seed for reproducible DataLoader shuffling."""
+    import torch
+    worker_seed = base_seed + worker_id
+    torch.manual_seed(worker_seed)
+    import random
+    random.seed(worker_seed)
+    import numpy as np
+    np.random.seed(worker_seed)
+
+
+def get_dataloaders(dataset_name, batch_size, num_workers=2, data_dir='data', seed=42):
     """Get Dataloaders for the specified dataset."""
     data_path = Path(data_dir)
     
@@ -177,13 +186,19 @@ def get_dataloaders(dataset_name, batch_size, num_workers=2, data_dir='data'):
         in_channels = 3
         num_classes = 1000
         
+    worker_fn = lambda worker_id: _worker_init_fn(worker_id, seed)
+    
     train_loader = DataLoader(
         train_ds, batch_size=batch_size, shuffle=True,
-        num_workers=num_workers, pin_memory=True, persistent_workers=(num_workers > 0)
+        num_workers=num_workers, pin_memory=True,
+        persistent_workers=(num_workers > 0),
+        worker_init_fn=worker_fn if num_workers > 0 else None,
     )
     test_loader = DataLoader(
         test_ds, batch_size=batch_size,
-        num_workers=num_workers, pin_memory=True, persistent_workers=(num_workers > 0)
+        num_workers=num_workers, pin_memory=True,
+        persistent_workers=(num_workers > 0),
+        worker_init_fn=worker_fn if num_workers > 0 else None,
     )
     
     return train_loader, test_loader, in_channels, num_classes
@@ -205,14 +220,18 @@ def run_experiment(args, save_dir: Path) -> dict:
     
     pl.seed_everything(args.seed)
     train_loader, test_loader, in_channels, num_classes = get_dataloaders(
-        args.dataset, args.batch_size, args.num_workers, args.data_dir
+        args.dataset, args.batch_size, args.num_workers, args.data_dir, seed=args.seed
     )
     
     logger.info(f"Dataset={args.dataset}, InChannels={in_channels}, NumClasses={num_classes}, "
                 f"TrainSamples={len(train_loader.dataset)}, TestSamples={len(test_loader.dataset)}")
     
-    # Initialization: Increase sabotage severity so network is truly 'dead'
-    init_std = 0.001 if args.init == 'sabotage' else 0.05
+    # Respect user-provided init_std; use defaults only as fallback.
+    # For sabotage, default to 0.001 (severe). For normal, default to 0.05 (Kaiming-like).
+    if hasattr(args, 'init_std') and args.init_std is not None:
+        init_std = args.init_std
+    else:
+        init_std = 0.001 if args.init == 'sabotage' else 0.05
     
     # Map dataset to input spatial resolution for stem selection
     input_size_map = {
@@ -225,12 +244,10 @@ def run_experiment(args, save_dir: Path) -> dict:
     input_size = input_size_map.get(args.dataset, 32)
     
     # Build model based on architecture type
-    if arch_name in ('vgg', 'plain', 'attention'):
+    if arch_name in ('vgg', 'plain'):
         model = ModernArchExperiment(
             arch_type=arch_name,
             depth=args.depth,
-            embed_dim=getattr(args, 'embed_dim', 64),
-            num_heads=getattr(args, 'num_heads', 4),
             in_channels=in_channels,
             num_classes=num_classes,
             num_steps=args.time_steps,

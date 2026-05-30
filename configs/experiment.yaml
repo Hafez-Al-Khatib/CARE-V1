@@ -51,7 +51,7 @@ model:
   
   # ResNet Architecture (Depth Scaling)
   architecture:
-    # Supported depths: 6, 12, 18, 34, 50, 101
+    # Supported depths: 6, 12, 18, 34, 50
     depth: 18            # Number of layers (ResNet-18 by default)
     in_channels: 1       # Fashion-MNIST is grayscale
     base_channels: 64    # First layer channels

@@ -1,16 +1,12 @@
 # Modern Architecture Experiment Config
-# VGG-Spiking and Spiking Attention
+# VGG-Spiking
 
 defaults:
   - _self_
 
 # Architecture selection
-arch_type: "vgg"  # "vgg" or "attention"
-depth: 11         # VGG: 11, 13, 16, 19; Attention: num_blocks
-
-# Spiking Attention specific
-embed_dim: 64
-num_heads: 4
+arch_type: "vgg"  # "vgg"
+depth: 11         # VGG: 11, 13, 16, 19
 
 # Plasticity toggle
 use_plasticity: true

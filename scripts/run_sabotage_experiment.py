@@ -61,9 +61,10 @@ def get_dataloaders():
     
     return train_loader, test_loader
 
-def run_experiment(block_type: str, save_dir: Path) -> dict:
+def run_experiment(block_type: str, use_plasticity: bool, save_dir: Path) -> dict:
+    mode_label = 'CARE' if use_plasticity else 'Control'
     print(f"\n{'='*60}")
-    print(f"EXPERIMENT: ResNet-{CONFIG['depth']} ({block_type}) with Sabotage Init (std={CONFIG['init_std']})")
+    print(f"EXPERIMENT: ResNet-{CONFIG['depth']} ({block_type}) {mode_label} | Sabotage Init (std={CONFIG['init_std']})")
     print(f"{'='*60}")
     
     pl.seed_everything(CONFIG['seed'])
@@ -88,7 +89,8 @@ def run_experiment(block_type: str, save_dir: Path) -> dict:
         num_steps=CONFIG['time_steps'],
         learning_rate=CONFIG['learning_rate'],
         init_method='sabotage',
-        init_std=CONFIG['init_std']
+        init_std=CONFIG['init_std'],
+        use_plasticity=use_plasticity,
     )
     
     # Callbacks
@@ -124,12 +126,12 @@ def main():
     
     results = {}
     
-    # Run Control (SEW)
-    summary_control = run_experiment('sew', results_dir / 'control')
+    # Run Control (SEW, no plasticity)
+    summary_control = run_experiment('sew', use_plasticity=False, save_dir=results_dir / 'control')
     results['Control'] = summary_control
     
-    # Run CARE (MS)
-    summary_care = run_experiment('ms', results_dir / 'care')
+    # Run CARE (SEW, with plasticity) — same architecture, only plasticity differs
+    summary_care = run_experiment('sew', use_plasticity=True, save_dir=results_dir / 'care')
     results['CARE'] = summary_care
     
     # print results

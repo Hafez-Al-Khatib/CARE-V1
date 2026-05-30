@@ -109,8 +109,8 @@ class DeadNeuronCallback(Callback):
                 pl_module.log(
                     f"dead_neurons/{layer_name}",
                     dead_ratio,
-                    on_step=True,
-                    on_epoch=False,
+                    on_step=False,
+                    on_epoch=True,
                 )
         
         # Aggregate metrics

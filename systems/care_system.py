@@ -110,7 +110,7 @@ class CARESystem(pl.LightningModule):
         self,
         x: Tensor,
         num_steps: Optional[int] = None,
-    ) -> Tuple[Tensor, Dict[str, Tensor]]:
+    ) -> Tuple[Tensor, Tensor, Dict[str, Tensor]]:
         """
         Forward pass through CARE network.
         
@@ -123,6 +123,7 @@ class CARESystem(pl.LightningModule):
         Returns:
             Tuple of:
                 - Output spike counts [batch, output_dim]
+                - Output membrane potential [batch, output_dim] (for loss/accuracy)
                 - Metrics dict with 'sparsity', 'synops', 'spike_record'
         """
         steps = num_steps or self.num_steps
@@ -130,51 +131,24 @@ class CARESystem(pl.LightningModule):
     
     def _compute_loss(
         self,
-        spike_counts: Tensor,
+        mem_out: Tensor,
         targets: Tensor,
     ) -> Tensor:
         """
-        Compute loss using snntorch functional losses.
+        Compute cross-entropy loss on membrane potential logits.
         
         Args:
-            spike_counts: Spike counts per class [batch, output_dim]
+            mem_out: Output membrane potential [batch, output_dim]
             targets: Class labels [batch]
             
         Returns:
             Scalar loss tensor
         """
-        # Normalize spike counts to rates
-        spike_rates = spike_counts / self.num_steps
-        
-        if self.loss_type == "mse_count":
-            # MSE count loss: target rate for correct vs incorrect classes
-            # Create one-hot targets with correct/incorrect rates
-            num_classes = spike_counts.shape[-1]
-            targets_onehot = F.one_hot(targets, num_classes).float()
-            target_rates = (
-                targets_onehot * self.correct_rate + 
-                (1 - targets_onehot) * self.incorrect_rate
-            )
-            # MSE between actual rates and target rates
-            loss = F.mse_loss(spike_rates, target_rates)
-            
-        elif self.loss_type == "ce_rate":
-            # Cross-entropy on spike rates (softmax applied internally)
-            loss = F.cross_entropy(spike_rates, targets)
-            
-        elif self.loss_type == "ce_count":
-            # Cross-entropy on spike counts
-            loss = F.cross_entropy(spike_counts, targets)
-            
-        else:
-            # Fallback: standard cross-entropy on rates
-            loss = F.cross_entropy(spike_rates, targets)
-        
-        return loss
+        return F.cross_entropy(mem_out, targets)
     
     def _compute_metrics(
         self,
-        spike_counts: Tensor,
+        mem_out: Tensor,
         targets: Tensor,
         metrics: Dict[str, Tensor],
     ) -> Dict[str, Tensor]:
@@ -182,15 +156,15 @@ class CARESystem(pl.LightningModule):
         Compute training/validation metrics.
         
         Args:
-            spike_counts: Output spike counts [batch, output_dim]
+            mem_out: Output membrane potential [batch, output_dim]
             targets: Ground truth labels [batch]
             metrics: Dict from forward pass with 'sparsity', 'synops'
             
         Returns:
             Dict with all computed metrics
         """
-        # Accuracy: argmax of spike counts
-        preds = spike_counts.argmax(dim=-1)
+        # Accuracy: argmax of membrane potential
+        preds = mem_out.argmax(dim=-1)
         acc = (preds == targets).float().mean()
         
         # Sparsity from network
@@ -223,13 +197,13 @@ class CARESystem(pl.LightningModule):
         inputs, targets = batch
         
         # Forward pass
-        spike_counts, forward_metrics = self(inputs)
+        spike_counts, mem_out, forward_metrics = self(inputs)
         
-        # Compute loss
-        loss = self._compute_loss(spike_counts, targets)
+        # Compute loss on membrane potential (standard for potential-driven SNNs)
+        loss = self._compute_loss(mem_out, targets)
         
         # Compute metrics
-        metrics = self._compute_metrics(spike_counts, targets, forward_metrics)
+        metrics = self._compute_metrics(mem_out, targets, forward_metrics)
         
         # Log everything
         self.log('train/loss', loss, on_step=True, on_epoch=True, prog_bar=True)
@@ -265,11 +239,11 @@ class CARESystem(pl.LightningModule):
         inputs, targets = batch
         
         # Forward pass
-        spike_counts, forward_metrics = self(inputs)
+        spike_counts, mem_out, forward_metrics = self(inputs)
         
-        # Compute loss and metrics
-        loss = self._compute_loss(spike_counts, targets)
-        metrics = self._compute_metrics(spike_counts, targets, forward_metrics)
+        # Compute loss and metrics on membrane potential
+        loss = self._compute_loss(mem_out, targets)
+        metrics = self._compute_metrics(mem_out, targets, forward_metrics)
         
         # Log validation metrics
         self.log('val/loss', loss, on_epoch=True, prog_bar=True)

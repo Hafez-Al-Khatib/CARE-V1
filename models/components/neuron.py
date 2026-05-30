@@ -803,15 +803,19 @@ class CareResNet(nn.Module):
         self.snr_steepness = snr_steepness
         
         # Config
-        if depth not in [6, 18, 34, 50]: 
-            depth = 18
-        
         layers_cfg = {
             6:  [1, 1, 1, 1],
+            12: [2, 2, 2, 2],  # Added depth-12 support
             18: [2, 2, 2, 2],
             34: [3, 4, 6, 3],
             50: [3, 4, 6, 3]
-        }[depth]
+        }
+        if depth not in layers_cfg:
+            raise ValueError(
+                f"Unsupported CareResNet depth {depth}. "
+                f"Supported depths: {list(layers_cfg.keys())}"
+            )
+        layers_cfg = layers_cfg[depth]
         
         # Block Selection
         if block_type.lower() == 'sew':

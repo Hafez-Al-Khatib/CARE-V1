@@ -4,8 +4,7 @@
 #  Cross-Architecture + Cross-Dataset Experiments
 #
 #  NEW vs V5: Tests CARE on VGG-SNN, Plain ConvNet, and
-#  SpikingAttention alongside ResNet. Also adds CIFAR-100
-#  and depth-scaling experiments.
+#  ResNet. Also adds CIFAR-100 and depth-scaling experiments.
 #
 #  Hardware: Single RTX 4090 (24GB VRAM)
 #  Estimated runtime: ~4 days sequential
@@ -53,11 +52,7 @@ run_exp "vgg11_care"     --arch vgg --depth 11 --homeo_target gamma
 run_exp "plain8_control" --arch plain --depth 8 --no_plasticity
 run_exp "plain8_care"    --arch plain --depth 8 --homeo_target weight
 
-# A.3 Spiking Attention-4 (Transformer-style, reduced embed_dim for VRAM budget)
-run_exp "attn4_control"  --arch attention --depth 4 --embed_dim 32 --no_plasticity
-run_exp "attn4_care"     --arch attention --depth 4 --embed_dim 32 --homeo_target gamma
-
-# A.4 SEW-ResNet-18 Baseline (reference from V5 suite)
+# A.3 SEW-ResNet-18 Baseline (reference from V5 suite)
 # Already have A0_control running; just need CARE version for comparison
 run_exp "sew18_care"     --arch resnet --depth 18 --block sew --homeo_target gamma --eta_stdp 0.0001
 

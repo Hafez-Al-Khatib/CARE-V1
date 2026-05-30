@@ -1,7 +1,7 @@
 """
 Modern Architecture Experiment Runner
 
-Run VGG-Spiking and Spiking Attention experiments.
+Run VGG-Spiking experiments.
 
 Usage:
     # VGG-11 Control
@@ -9,9 +9,6 @@ Usage:
     
     # VGG-11 Hybrid
     py -3.12 scripts/run_modern.py arch_type=vgg depth=11 use_plasticity=True
-    
-    # Spiking Attention Control
-    py -3.12 scripts/run_modern.py arch_type=attention depth=4 use_plasticity=False
 
 Author: CARE Research Team
 """
@@ -117,8 +114,6 @@ def main(cfg: DictConfig) -> None:
     model = ModernArchExperiment(
         arch_type=arch_type,
         depth=depth,
-        embed_dim=cfg.embed_dim,
-        num_heads=cfg.num_heads,
         in_channels=1,
         num_classes=10,
         num_steps=cfg.num_steps,
@@ -140,7 +135,7 @@ def main(cfg: DictConfig) -> None:
         ModelCheckpoint(
             monitor='val/accuracy',
             mode='max',
-            save_top_k=3,
+            save_top_k=1,  # Keep only best to save disk space
             filename=f'{arch_type}-{{epoch:02d}}-{{val_accuracy:.4f}}',
         ),
         EarlyStopping(monitor='val/loss', patience=10, mode='min'),

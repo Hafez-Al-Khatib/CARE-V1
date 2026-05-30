@@ -4,7 +4,6 @@ Modern SNN Architecture Experiment Module
 Architectures beyond ResNet to prove CARE generalizes:
   1. VGG-SNN:     No skip connections → worst dead neuron case with BN
   2. PlainConvSNN: No skip, no BN → absolute worst case (CARE's strongest showcase)
-  3. SpikingAttentionNet: Transformer-style → proves CARE works on attention
 
 All architectures use CareLIFConv with full ablation-configurable CARE parameters
 (homeo_target, SNR gating) for consistent cross-architecture comparison.
@@ -310,260 +309,19 @@ class PlainConvSNN(nn.Module):
 
 
 # =============================================================================
-# Spiking Attention Block
-# =============================================================================
-
-class SpikingSelfAttention(nn.Module):
-    """
-    Spike-driven self-attention mechanism.
-    Inspired by Spikingformer (AAAI 2024) and SpikingResformer (CVPR 2024).
-    """
-    
-    def __init__(
-        self,
-        dim: int,
-        num_heads: int = 4,
-        beta: float = 0.9,
-        threshold: float = 1.0,
-        slope: float = 25.0,
-    ) -> None:
-        super().__init__()
-        
-        self.num_heads = num_heads
-        self.head_dim = dim // num_heads
-        self.scale = self.head_dim ** -0.5
-        
-        self.qkv_conv = nn.Conv2d(dim, dim * 3, 1, bias=False)
-        self.qkv_lif = snn.Leaky(
-            beta=beta, threshold=threshold,
-            spike_grad=surrogate.fast_sigmoid(slope=slope),
-            init_hidden=False,
-        )
-        
-        self.proj = nn.Conv2d(dim, dim, 1, bias=False)
-        self.proj_lif = snn.Leaky(
-            beta=beta, threshold=threshold,
-            spike_grad=surrogate.fast_sigmoid(slope=slope),
-            init_hidden=False,
-        )
-        
-        self.dim = dim
-        self._spike_record: List[Tensor] = []
-        
-        self.register_buffer('activity_trace', torch.zeros(dim))
-        self.activity_decay = 0.99
-    
-    def reset_spike_record(self) -> None:
-        self._spike_record = []
-    
-    def get_spike_record(self) -> Tensor:
-        if self._spike_record:
-            return torch.stack(self._spike_record, dim=0)
-        return torch.tensor([])
-    
-    def apply_homeostatic_update(self, target_rate: float, learning_rate: float) -> None:
-        with torch.no_grad():
-            deviation = target_rate - self.activity_trace
-            boost = 1.0 + learning_rate * deviation.view(1, -1, 1, 1)
-            self.qkv_conv.weight.mul_(boost.clamp(0.9, 1.1).expand_as(self.qkv_conv.weight[:self.dim]))
-    
-    def forward(self, x: Tensor, mem_qkv: Tensor, mem_proj: Tensor) -> Tuple[Tensor, Tensor, Tensor]:
-        B, C, H, W = x.shape
-        
-        qkv = self.qkv_conv(x)
-        qkv_spk, mem_qkv = self.qkv_lif(qkv, mem_qkv)
-        
-        qkv_spk = qkv_spk.reshape(B, 3, self.num_heads, self.head_dim, H * W)
-        q, k, v = qkv_spk[:, 0], qkv_spk[:, 1], qkv_spk[:, 2]
-        
-        attn = (q.transpose(-2, -1) @ k) * self.scale
-        attn = torch.clamp(attn, 0, 1)
-        
-        out = (attn @ v.transpose(-2, -1)).transpose(-2, -1)
-        out = out.reshape(B, C, H, W)
-        
-        out = self.proj(out)
-        out_spk, mem_proj = self.proj_lif(out, mem_proj)
-        
-        self._spike_record.append(out_spk.detach())
-        
-        with torch.no_grad():
-            channel_activity = out_spk.mean(dim=(0, 2, 3))
-            self.activity_trace = (
-                self.activity_decay * self.activity_trace +
-                (1 - self.activity_decay) * channel_activity
-            )
-        
-        return out_spk, mem_qkv, mem_proj
-
-
-class SpikingAttentionBlock(nn.Module):
-    """Full spiking attention block with residual: x -> Attention -> LIF + x"""
-    
-    def __init__(self, dim: int, num_heads: int = 4, beta: float = 0.9,
-                 threshold: float = 1.0, slope: float = 25.0) -> None:
-        super().__init__()
-        
-        self.attention = SpikingSelfAttention(dim, num_heads, beta, threshold, slope)
-        
-        self.mlp_conv1 = nn.Conv2d(dim, dim * 4, 1, bias=False)
-        self.mlp_lif1 = snn.Leaky(
-            beta=beta, threshold=threshold,
-            spike_grad=surrogate.fast_sigmoid(slope=slope), init_hidden=False,
-        )
-        self.mlp_conv2 = nn.Conv2d(dim * 4, dim, 1, bias=False)
-        self.mlp_lif2 = snn.Leaky(
-            beta=beta, threshold=threshold,
-            spike_grad=surrogate.fast_sigmoid(slope=slope), init_hidden=False,
-        )
-        self.dim = dim
-    
-    def reset_spike_records(self) -> None:
-        self.attention.reset_spike_record()
-    
-    def get_spike_records(self) -> Dict[str, Tensor]:
-        return {'attention': self.attention.get_spike_record()}
-    
-    def apply_homeostatic_updates(self, target_rate: float, learning_rate: float) -> None:
-        self.attention.apply_homeostatic_update(target_rate, learning_rate)
-    
-    def forward(self, x, mem_qkv, mem_proj, mem_mlp1, mem_mlp2):
-        attn_out, mem_qkv, mem_proj = self.attention(x, mem_qkv, mem_proj)
-        x = x + attn_out
-        
-        mlp = self.mlp_conv1(x)
-        mlp, mem_mlp1 = self.mlp_lif1(mlp, mem_mlp1)
-        mlp = self.mlp_conv2(mlp)
-        mlp, mem_mlp2 = self.mlp_lif2(mlp, mem_mlp2)
-        x = x + mlp
-        
-        return x, mem_qkv, mem_proj, mem_mlp1, mem_mlp2
-
-
-# =============================================================================
-# Spiking Attention Network
-# =============================================================================
-
-class SpikingAttentionNet(nn.Module):
-    """Spiking attention network with CARE-configurable stem."""
-    
-    def __init__(
-        self,
-        num_blocks: int = 4,
-        embed_dim: int = 64,
-        num_heads: int = 4,
-        in_channels: int = 3,
-        num_classes: int = 10,
-        num_steps: int = 8,
-        beta: float = 0.9,
-        threshold: float = 1.0,
-        slope: float = 25.0,
-        homeo_target: str = 'gamma',
-        snr_enabled: bool = True,
-        snr_threshold: float = 2.0,
-        snr_steepness: float = 5.0,
-    ) -> None:
-        super().__init__()
-        
-        self.num_blocks = num_blocks
-        self.num_steps = num_steps
-        self.embed_dim = embed_dim
-        
-        # Stem with CARE params
-        self.stem = CareLIFConv(
-            in_channels, embed_dim,
-            kernel_size=3, stride=1, padding=1,  # preserve spatial for small images
-            beta=beta, threshold=threshold, slope=slope,
-            homeo_target=homeo_target, snr_enabled=snr_enabled,
-            snr_threshold=snr_threshold, snr_steepness=snr_steepness,
-        )
-        
-        self.blocks = nn.ModuleList([
-            SpikingAttentionBlock(embed_dim, num_heads, beta, threshold, slope)
-            for _ in range(num_blocks)
-        ])
-        
-        self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-        self.classifier = nn.Linear(embed_dim, num_classes)
-        self.lif_out = snn.Leaky(
-            beta=beta, threshold=threshold,
-            spike_grad=surrogate.fast_sigmoid(slope=slope),
-            init_hidden=False,
-        )
-    
-    def reset_spike_records(self) -> None:
-        self.stem.reset_spike_record()
-        for block in self.blocks:
-            block.reset_spike_records()
-    
-    def get_spike_records(self) -> Dict[str, Tensor]:
-        records = {'stem': self.stem.get_spike_record()}
-        for i, block in enumerate(self.blocks):
-            for k, v in block.get_spike_records().items():
-                records[f'block{i}_{k}'] = v
-        return records
-    
-    def apply_homeostatic_updates(self, target_rate: float, learning_rate: float) -> None:
-        self.stem.apply_homeostatic_update(target_rate, learning_rate)
-        for block in self.blocks:
-            block.apply_homeostatic_updates(target_rate, learning_rate)
-    
-    def forward(self, x: Tensor) -> Tuple[Tensor, Tensor]:
-        batch_size = x.shape[0]
-        device = x.device
-        self.reset_spike_records()
-        
-        h, w = x.shape[2], x.shape[3]
-        stem_mem = self.stem.init_state(batch_size, h, w, device)
-        
-        block_mems = []
-        for _ in self.blocks:
-            block_mems.append({
-                'qkv': torch.zeros(batch_size, self.embed_dim * 3, h, w, device=device),
-                'proj': torch.zeros(batch_size, self.embed_dim, h, w, device=device),
-                'mlp1': torch.zeros(batch_size, self.embed_dim * 4, h, w, device=device),
-                'mlp2': torch.zeros(batch_size, self.embed_dim, h, w, device=device),
-            })
-        
-        mem_out = torch.zeros(batch_size, self.classifier.out_features, device=device)
-        spike_count = torch.zeros(batch_size, self.classifier.out_features, device=device)
-        
-        for t in range(self.num_steps):
-            out, stem_mem = self.stem(x, stem_mem)
-            
-            for i, block in enumerate(self.blocks):
-                out, block_mems[i]['qkv'], block_mems[i]['proj'], \
-                block_mems[i]['mlp1'], block_mems[i]['mlp2'] = block(
-                    out,
-                    block_mems[i]['qkv'], block_mems[i]['proj'],
-                    block_mems[i]['mlp1'], block_mems[i]['mlp2'],
-                )
-            
-            pooled = self.avgpool(out)
-            flat = pooled.view(batch_size, -1)
-            current = self.classifier(flat)
-            spk_out, mem_out = self.lif_out(current, mem_out)
-            spike_count += spk_out
-        
-        return spike_count, mem_out
-
-
-# =============================================================================
 # Unified Experiment Module (All Architectures)
 # =============================================================================
 
 class ModernArchExperiment(pl.LightningModule):
     """
     Lightning module for all SNN architecture experiments.
-    Supports: vgg, plain, attention, resnet
+    Supports: vgg, plain, resnet
     """
     
     def __init__(
         self,
         arch_type: str = "vgg",
         depth: int = 11,
-        embed_dim: int = 64,
-        num_heads: int = 4,
         in_channels: int = 3,
         num_classes: int = 10,
         num_steps: int = 8,
@@ -610,14 +368,6 @@ class ModernArchExperiment(pl.LightningModule):
                 snr_enabled=snr_enabled, snr_threshold=snr_threshold,
                 snr_steepness=snr_steepness,
             )
-        elif arch_type == "attention":
-            self.network = SpikingAttentionNet(
-                num_blocks=depth, embed_dim=embed_dim, num_heads=num_heads,
-                in_channels=in_channels, num_classes=num_classes,
-                num_steps=num_steps, beta=beta, threshold=threshold, slope=slope,
-                homeo_target=homeo_target, snr_enabled=snr_enabled,
-                snr_threshold=snr_threshold, snr_steepness=snr_steepness,
-            )
         elif arch_type == "resnet":
             self.network = CareResNet(
                 depth=depth, in_channels=in_channels, num_classes=num_classes,
@@ -628,7 +378,7 @@ class ModernArchExperiment(pl.LightningModule):
                 snr_threshold=snr_threshold, snr_steepness=snr_steepness,
             )
         else:
-            raise ValueError(f"Unknown arch_type: {arch_type}. Use: vgg, plain, attention, resnet")
+            raise ValueError(f"Unknown arch_type: {arch_type}. Use: vgg, plain, resnet")
         
         # Apply initialization
         if init_method == "sabotage":

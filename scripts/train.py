@@ -44,7 +44,11 @@ except ImportError:
     from lightning.pytorch.loggers import WandbLogger
 
 from systems.care_system import CARESystem, build_care_system
-from data.datamodule import NeuromorphicDataModule, build_datamodule
+
+# NOTE: data.datamodule does not exist in this repo.
+# For neuromorphic datasets, install tonic and implement a datamodule,
+# or use torchvision datasets via run_flexible_experiment.py instead.
+# from data.datamodule import NeuromorphicDataModule, build_datamodule
 
 
 def create_dummy_dataloader(cfg: DictConfig):

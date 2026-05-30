@@ -525,7 +525,7 @@ class CareBlock(nn.Module):
             'spike_record': spike_record,
         }
         
-        return output_spike_count, metrics
+        return output_spike_count, out_mem, metrics
     
     def apply_stdp_updates(self, blend_factor: float = 0.5) -> None:
         """Apply accumulated STDP updates to plasticity layers."""

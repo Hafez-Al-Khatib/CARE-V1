@@ -267,9 +267,8 @@ def run_experiment(
         slope=25.0,
         learning_rate=lr,
         weight_decay=1e-4,
-        enable_plasticity=plasticity,
+        use_plasticity=plasticity,
         target_rate=0.1,
-        homeostatic_lr=0.01,
     )
     
     # Callbacks
