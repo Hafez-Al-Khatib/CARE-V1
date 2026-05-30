@@ -410,9 +410,11 @@ from typing import Dict, List, Any
 
 # Initialization utilities
 def sabotage_init(module: nn.Module, std: float = 0.01) -> None:
-    """Initialize conv weights with abnormally low std to simulate dead neurons."""
+    """Initialize conv weights and BN gains with abnormally low std to simulate dead neurons."""
     if isinstance(module, nn.Conv2d):
         nn.init.normal_(module.weight, mean=0.0, std=std)
+    elif isinstance(module, nn.BatchNorm2d) and module.affine:
+        nn.init.constant_(module.weight, std)
 
 def normal_init(module: nn.Module) -> None:
     """Standard Kaiming initialization."""
@@ -430,14 +432,23 @@ class CareLIFConv(nn.Module):
         beta: float = 0.9,
         threshold: float = 1.0,
         slope: float = 25.0,
-        return_current: bool = False
+        return_current: bool = False,
+        homeo_target: str = 'gamma',   # 'gamma', 'weight', or 'both'
+        snr_enabled: bool = True,
+        snr_threshold: float = 2.0,
+        snr_steepness: float = 5.0,
+        use_bn: bool = True,           # Set False for Plain ConvNet (worst-case dead neuron scenario)
     ) -> None:
         super().__init__()
         self.conv = nn.Conv2d(
-            in_channels, out_channels, kernel_size=kernel_size, stride=stride, padding=padding, bias=False
+            in_channels, out_channels, kernel_size=kernel_size, stride=stride, padding=padding, bias=not use_bn
         )
         
-        self.bn = nn.BatchNorm2d(out_channels) # Gradient Rescue: Pre-Activation BN
+        self.use_bn = use_bn
+        if use_bn:
+            self.bn = nn.BatchNorm2d(out_channels)  # Gradient Rescue: Pre-Activation BN
+        else:
+            self.bn = nn.Identity()  # No BN = pure weight-driven homeostasis
         
         # Gradient Rescue: Learnable Threshold
         learnable_thresh = nn.Parameter(torch.tensor(float(threshold), dtype=torch.float32))
@@ -450,6 +461,12 @@ class CareLIFConv(nn.Module):
         self.out_channels = out_channels
         self._spike_record: List[Tensor] = []
         self.return_current = return_current
+
+        # Ablation-configurable parameters
+        self.homeo_target = homeo_target
+        self.snr_enabled = snr_enabled
+        self.snr_threshold = snr_threshold
+        self.snr_steepness = snr_steepness
 
         self.register_buffer('activity_trace', torch.zeros(out_channels))
         self.register_buffer('max_membrane_trace', torch.zeros(out_channels)) 
@@ -499,34 +516,39 @@ class CareLIFConv(nn.Module):
         with torch.no_grad():
             deviation = target_rate - self.activity_trace
             
-            # Dynamic SNR Gating:
-            # We compare Peak Activity (Max) vs Background Noise (Mean Abs).
-            # If Peak > 2.0 * Mean, it implies structured "Spikes" (features) exist.
-            # If Peak ~ Mean, it implies flat noise.
-            
-            # Avoid division by zero
-            safe_mean = self.mean_membrane_trace + 1e-6
-            snr = self.max_membrane_trace / safe_mean
-            
-            # Dynamic Gate: Soft sigmoid transition around SNR = 2.0
-            # If SNR > 2.0, Gate -> 1.0 (Amplify)
-            # If SNR < 2.0, Gate -> 0.0 (Suppress/Ignore)
-            stimulation_gate = torch.sigmoid((snr - 2.0) * 5.0)
-            
-            # Also require absolute minimal activity to avoid amplifying pure silence (0/0)
-            # e.g. Max must be > 0.01 (tiny, but non-zero)
-            absolute_gate = torch.sigmoid((self.max_membrane_trace - 0.01) * 100.0)
-            
-            final_gate = stimulation_gate * absolute_gate
+            # Dynamic SNR Gating (configurable for ablation)
+            if self.snr_enabled:
+                safe_mean = self.mean_membrane_trace + 1e-6
+                snr = self.max_membrane_trace / safe_mean
+                stimulation_gate = torch.sigmoid((snr - self.snr_threshold) * self.snr_steepness)
+                absolute_gate = torch.sigmoid((self.max_membrane_trace - 0.01) * 100.0)
+                final_gate = stimulation_gate * absolute_gate
+            else:
+                # SNR gating disabled: always allow updates
+                final_gate = torch.ones_like(deviation)
             
             gate = torch.where(deviation > 0, final_gate, torch.ones_like(final_gate))
             
-            update = learning_rate * (deviation * gate).view(-1, 1, 1, 1)
+            update_1d = learning_rate * (deviation * gate)
             
-            sign_mask = torch.sign(self.conv.weight)
-            sign_mask[sign_mask == 0] = 1.0 
+            # Convert additive update to a multiplicative scale factor (Bio-plausible synaptic scaling)
+            # e.g., if update_1d is 0.05, multiplier is 1.05. If -0.05, multiplier is 0.95.
+            multiplier_1d = 1.0 + update_1d
+            multiplier_4d = multiplier_1d.view(-1, 1, 1, 1)
             
-            self.conv.weight.add_(sign_mask * update)
+            # Homeostatic target selection (configurable for ablation)
+            if self.homeo_target == 'gamma':
+                if hasattr(self, 'bn') and self.bn is not None and self.bn.affine:
+                    self.bn.weight.mul_(multiplier_1d)
+                else:
+                    # Fallback to weight if no BN (Multiplicative scaling is naturally sign-preserving!)
+                    self.conv.weight.mul_(multiplier_4d)
+            elif self.homeo_target == 'weight':
+                self.conv.weight.mul_(multiplier_4d)
+            elif self.homeo_target == 'both':
+                if hasattr(self, 'bn') and self.bn is not None and self.bn.affine:
+                    self.bn.weight.mul_(multiplier_1d)
+                self.conv.weight.mul_(multiplier_4d)
 
 
 # =============================================================================
@@ -541,17 +563,20 @@ class SEWResNetBlock(nn.Module):
     """
     expansion = 1
 
-    def __init__(self, in_channels: int, out_channels: int, stride: int = 1, downsample: Optional[nn.Module] = None, beta: float = 0.9, threshold: float = 1.0, slope: float = 25.0) -> None:
+    def __init__(self, in_channels: int, out_channels: int, stride: int = 1, downsample: Optional[nn.Module] = None, beta: float = 0.9, threshold: float = 1.0, slope: float = 25.0,
+                 homeo_target: str = 'gamma', snr_enabled: bool = True, snr_threshold: float = 2.0, snr_steepness: float = 5.0) -> None:
         super().__init__()
 
         self.conv1 = CareLIFConv(in_channels, out_channels,
             kernel_size=3, stride=stride, padding=1,
-            beta=beta, threshold=threshold, slope=slope
+            beta=beta, threshold=threshold, slope=slope,
+            homeo_target=homeo_target, snr_enabled=snr_enabled, snr_threshold=snr_threshold, snr_steepness=snr_steepness,
         )
         self.conv2 = CareLIFConv(
             out_channels, out_channels,
             kernel_size=3, stride=1, padding=1,
-            beta=beta, threshold=threshold, slope=slope
+            beta=beta, threshold=threshold, slope=slope,
+            homeo_target=homeo_target, snr_enabled=snr_enabled, snr_threshold=snr_threshold, snr_steepness=snr_steepness,
         )
         self.downsample = downsample
         self.stride = stride
@@ -612,14 +637,24 @@ class MSResNetBlock(nn.Module):
         beta: float = 0.9,
         threshold: float = 1.0,
         slope: float = 25.0,
+        homeo_target: str = 'gamma',
+        snr_enabled: bool = True,
+        snr_threshold: float = 2.0,
+        snr_steepness: float = 5.0,
     ) -> None:
         super().__init__()
+        
+        # Store SNR params for conv2's manual homeostasis
+        self.snr_enabled = snr_enabled
+        self.snr_threshold = snr_threshold
+        self.snr_steepness = snr_steepness
         
         # First layer is standard CareLIFConv (has full SNR gating)
         self.conv1 = CareLIFConv(
             in_channels, out_channels,
             kernel_size=3, stride=stride, padding=1,
-            beta=beta, threshold=threshold, slope=slope
+            beta=beta, threshold=threshold, slope=slope,
+            homeo_target=homeo_target, snr_enabled=snr_enabled, snr_threshold=snr_threshold, snr_steepness=snr_steepness,
         )
         
         # Second layer components separated for Membrane Shortcut
@@ -659,20 +694,23 @@ class MSResNetBlock(nn.Module):
     def apply_homeostatic_updates(self, target_rate: float, learning_rate: float) -> None:
         self.conv1.apply_homeostatic_update(target_rate, learning_rate)
         
-        # SNR-gated update for conv2 (matches CareLIFConv.apply_homeostatic_update)
+        # SNR-gated update for conv2 (configurable for ablation)
         with torch.no_grad():
             deviation = target_rate - self.activity_trace_2
             
-            # Dynamic SNR Gating
-            safe_mean = self.mean_membrane_trace_2 + 1e-6
-            snr = self.max_membrane_trace_2 / safe_mean
-            stimulation_gate = torch.sigmoid((snr - 2.0) * 5.0)
-            absolute_gate = torch.sigmoid((self.max_membrane_trace_2 - 0.01) * 100.0)
-            final_gate = stimulation_gate * absolute_gate
+            if self.snr_enabled:
+                safe_mean = self.mean_membrane_trace_2 + 1e-6
+                snr = self.max_membrane_trace_2 / safe_mean
+                stimulation_gate = torch.sigmoid((snr - self.snr_threshold) * self.snr_steepness)
+                absolute_gate = torch.sigmoid((self.max_membrane_trace_2 - 0.01) * 100.0)
+                final_gate = stimulation_gate * absolute_gate
+            else:
+                final_gate = torch.ones_like(deviation)
             
             gate = torch.where(deviation > 0, final_gate, torch.ones_like(final_gate))
             update = learning_rate * (deviation * gate).view(-1, 1, 1, 1)
             
+            # MS conv2 has no BN, so always target weights directly
             sign_mask = torch.sign(self.conv2.weight)
             sign_mask[sign_mask == 0] = 1.0
             self.conv2.weight.add_(sign_mask * update)
@@ -747,6 +785,11 @@ class CareResNet(nn.Module):
         threshold: float = 1.0,
         slope: float = 25.0,
         block_type: str = 'sew',  # 'sew' or 'ms'
+        input_size: int = 32,  # Spatial size of input (e.g. 32 for CIFAR, 64 for TinyIN, 224 for ImageNet)
+        homeo_target: str = 'gamma',
+        snr_enabled: bool = True,
+        snr_threshold: float = 2.0,
+        snr_steepness: float = 5.0,
     ) -> None:
         super().__init__()
         
@@ -754,6 +797,10 @@ class CareResNet(nn.Module):
         self.beta = beta
         self.threshold = threshold
         self.slope = slope
+        self.homeo_target = homeo_target
+        self.snr_enabled = snr_enabled
+        self.snr_threshold = snr_threshold
+        self.snr_steepness = snr_steepness
         
         # Config
         if depth not in [6, 18, 34, 50]: 
@@ -778,14 +825,15 @@ class CareResNet(nn.Module):
 
         self.expansion = 1
         
-        # Stem: Use small 3x3 stride-1 for CIFAR-sized inputs, 7x7 stride-2 for ImageNet
-        self.cifar_mode = (in_channels <= 3 and base_channels <= 64)
-        if base_channels <= 32:
-            # CIFAR stem: preserve spatial resolution
+        # Stem: Use small 3x3 stride-1 for small inputs (<=64px), 7x7 stride-2 for ImageNet-scale
+        self.small_input = (input_size <= 64)
+        if self.small_input:
+            # CIFAR / Tiny-ImageNet stem: preserve spatial resolution
             self.stem = CareLIFConv(
                 in_channels, base_channels,
                 kernel_size=3, stride=1, padding=1,
-                beta=beta, threshold=threshold, slope=slope
+                beta=beta, threshold=threshold, slope=slope,
+                homeo_target=homeo_target, snr_enabled=snr_enabled, snr_threshold=snr_threshold, snr_steepness=snr_steepness,
             )
             self.stem_stride = 1
         else:
@@ -793,7 +841,8 @@ class CareResNet(nn.Module):
             self.stem = CareLIFConv(
                 in_channels, base_channels,
                 kernel_size=7, stride=2, padding=3,
-                beta=beta, threshold=threshold, slope=slope
+                beta=beta, threshold=threshold, slope=slope,
+                homeo_target=homeo_target, snr_enabled=snr_enabled, snr_threshold=snr_threshold, snr_steepness=snr_steepness,
             )
             self.stem_stride = 2
         
@@ -829,13 +878,15 @@ class CareResNet(nn.Module):
         blocks = []
         blocks.append(block_class(
             self.in_channels, out_channels, stride, downsample,
-            self.beta, self.threshold, self.slope
+            self.beta, self.threshold, self.slope,
+            homeo_target=self.homeo_target, snr_enabled=self.snr_enabled, snr_threshold=self.snr_threshold, snr_steepness=self.snr_steepness,
         ))
         self.in_channels = out_channels * self.expansion
         for _ in range(1, num_blocks):
             blocks.append(block_class(
                 self.in_channels, out_channels, 1, None,
-                self.beta, self.threshold, self.slope
+                self.beta, self.threshold, self.slope,
+                homeo_target=self.homeo_target, snr_enabled=self.snr_enabled, snr_threshold=self.snr_threshold, snr_steepness=self.snr_steepness,
             ))
         return nn.ModuleList(blocks)
 
@@ -949,6 +1000,11 @@ class DeadNeuronExperiment(pl.LightningModule):
         eta_stdp: float = 0.005,
         target_rate: float = 0.1,
         block_type: str = 'sew',
+        input_size: int = 32,
+        homeo_target: str = 'gamma',
+        snr_enabled: bool = True,
+        snr_threshold: float = 2.0,
+        snr_steepness: float = 5.0,
         **kwargs: Any,
     ) -> None:
         super().__init__()
@@ -978,7 +1034,12 @@ class DeadNeuronExperiment(pl.LightningModule):
             beta=beta,
             threshold=threshold,
             slope=slope,
-            block_type=block_type
+            block_type=block_type,
+            input_size=input_size,
+            homeo_target=homeo_target,
+            snr_enabled=snr_enabled,
+            snr_threshold=snr_threshold,
+            snr_steepness=snr_steepness,
         )
         
         # Apply initialization
@@ -1001,11 +1062,11 @@ class DeadNeuronExperiment(pl.LightningModule):
     
     def training_step(self, batch: Tuple, batch_idx: int) -> Tensor:
         inputs, targets = batch
-        spike_counts, _ = self(inputs)
-        spike_rates = spike_counts / self.num_steps
-        loss = F.cross_entropy(spike_rates, targets)
+        spike_counts, mem_out = self(inputs)
+        # Use final membrane potential as logits (continuous, well-scaled for softmax)
+        loss = F.cross_entropy(mem_out, targets)
         
-        preds = spike_counts.argmax(dim=-1)
+        preds = mem_out.argmax(dim=-1)
         acc = (preds == targets).float().mean()
         
         self.log('train/loss', loss, on_step=True, on_epoch=True, prog_bar=True)
@@ -1022,10 +1083,10 @@ class DeadNeuronExperiment(pl.LightningModule):
             
     def validation_step(self, batch: Tuple, batch_idx: int) -> Dict:
         inputs, targets = batch
-        spike_counts, _ = self(inputs)
-        spike_rates = spike_counts / self.num_steps
-        loss = F.cross_entropy(spike_rates, targets)
-        preds = spike_counts.argmax(dim=-1)
+        spike_counts, mem_out = self(inputs)
+        # Use final membrane potential as logits
+        loss = F.cross_entropy(mem_out, targets)
+        preds = mem_out.argmax(dim=-1)
         acc = (preds == targets).float().mean()
         
         self.log('val/loss', loss, on_epoch=True, prog_bar=True)

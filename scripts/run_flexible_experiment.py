@@ -12,6 +12,7 @@ Features:
 
 import sys
 import os
+os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:False'
 import logging
 from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parent.parent))
@@ -25,6 +26,7 @@ import argparse
 
 # Project imports — single source of truth
 from systems.experiment import DeadNeuronExperiment, PhdGradeNeuronTracker
+from systems.modern_experiment import ModernArchExperiment
 
 
 def setup_logging(save_dir: Path):
@@ -57,7 +59,10 @@ def setup_logging(save_dir: Path):
 def parse_args():
     parser = argparse.ArgumentParser(description='Flexible Experiment Runner')
     parser.add_argument('--dataset', type=str, default='fashion_mnist',
-                        choices=['fashion_mnist', 'cifar10', 'tiny_imagenet', 'imagenet'])
+                        choices=['fashion_mnist', 'cifar10', 'cifar100', 'tiny_imagenet', 'imagenet'])
+    parser.add_argument('--arch', type=str, default='resnet',
+                        choices=['resnet', 'vgg', 'plain', 'attention'],
+                        help='Architecture family')
     parser.add_argument('--depth', type=int, default=18)
     parser.add_argument('--init', type=str, default='sabotage', choices=['normal', 'sabotage'])
     parser.add_argument('--block', type=str, default='sew', choices=['sew', 'ms'])
@@ -66,13 +71,24 @@ def parse_args():
     parser.add_argument('--time_steps', type=int, default=8)
     parser.add_argument('--epochs', type=int, default=30)
     parser.add_argument('--no_plasticity', action='store_true', help='Disable homeostatic plasticity')
-    parser.add_argument('--eta_stdp', type=float, default=0.001, help='Learning rate for plasticity')
+    parser.add_argument("--eta_stdp", type=float, default=0.005, help="Plasticity learning rate")
     parser.add_argument('--output_dir', type=str, default='results/final_v2', help='Base output directory')
     parser.add_argument('--base_channels', type=int, default=64, help='Base channel width (use 32 for CIFAR)')
     parser.add_argument('--seed', type=int, default=42, help='Random seed')
+    parser.add_argument("--target_rate", type=float, default=0.02, help="Target firing rate for homeostasis")
+    parser.add_argument("--weight_decay", type=float, default=1e-4, help="Weight decay for optimizer")
     parser.add_argument('--lr', type=float, default=1e-3, help='Learning rate')
     parser.add_argument('--num_workers', type=int, default=2, help='DataLoader workers')
     parser.add_argument('--data_dir', type=str, default='data', help='Root directory for datasets')
+    # Architecture-specific
+    parser.add_argument('--embed_dim', type=int, default=64, help='Embedding dim for attention arch')
+    parser.add_argument('--num_heads', type=int, default=4, help='Number of attention heads')
+    # Ablation parameters
+    parser.add_argument('--homeo_target', type=str, default='gamma', choices=['gamma', 'weight', 'both'],
+                        help='Which parameter receives homeostatic updates')
+    parser.add_argument('--snr_threshold', type=float, default=2.0, help='SNR gating threshold')
+    parser.add_argument('--snr_steepness', type=float, default=5.0, help='SNR gating sigmoid steepness')
+    parser.add_argument('--snr_off', action='store_true', help='Disable SNR gating entirely')
     return parser.parse_args()
 
 
@@ -105,6 +121,22 @@ def get_dataloaders(dataset_name, batch_size, num_workers=2, data_dir='data'):
         test_ds = datasets.CIFAR10(str(data_path), train=False, download=True, transform=transform_test)
         in_channels = 3
         num_classes = 10
+    
+    elif dataset_name == 'cifar100':
+        transform_train = transforms.Compose([
+            transforms.RandomCrop(32, padding=4),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            transforms.Normalize((0.5071, 0.4867, 0.4408), (0.2675, 0.2565, 0.2761)),
+        ])
+        transform_test = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize((0.5071, 0.4867, 0.4408), (0.2675, 0.2565, 0.2761)),
+        ])
+        train_ds = datasets.CIFAR100(str(data_path), train=True, download=True, transform=transform_train)
+        test_ds = datasets.CIFAR100(str(data_path), train=False, download=True, transform=transform_test)
+        in_channels = 3
+        num_classes = 100
     
     elif dataset_name == 'tiny_imagenet':
         # Tiny-ImageNet: 64x64, 200 classes
@@ -158,10 +190,15 @@ def get_dataloaders(dataset_name, batch_size, num_workers=2, data_dir='data'):
 
 
 def run_experiment(args, save_dir: Path) -> dict:
+    # Optimize for RTX 4090
+    torch.set_float32_matmul_precision('high')
+    
     logger = setup_logging(save_dir)
     
+    arch_name = args.arch if hasattr(args, 'arch') else 'resnet'
+    
     logger.info(f"{'='*60}")
-    logger.info(f"EXPERIMENT: {args.dataset} ResNet-{args.depth} ({args.block}) "
+    logger.info(f"EXPERIMENT: {args.dataset} {arch_name.upper()}-{args.depth} "
                 f"Init={args.init} Plasticity={not args.no_plasticity} "
                 f"base_ch={args.base_channels} seed={args.seed}")
     logger.info(f"{'='*60}")
@@ -174,25 +211,65 @@ def run_experiment(args, save_dir: Path) -> dict:
     logger.info(f"Dataset={args.dataset}, InChannels={in_channels}, NumClasses={num_classes}, "
                 f"TrainSamples={len(train_loader.dataset)}, TestSamples={len(test_loader.dataset)}")
     
-    torch.cuda.empty_cache() 
+    # Initialization: Increase sabotage severity so network is truly 'dead'
+    init_std = 0.001 if args.init == 'sabotage' else 0.05
     
-    # Init Std 
-    init_std = 0.01 if args.init == 'sabotage' else 0.05
+    # Map dataset to input spatial resolution for stem selection
+    input_size_map = {
+        'fashion_mnist': 28,
+        'cifar10': 32,
+        'cifar100': 32,
+        'tiny_imagenet': 64,
+        'imagenet': 224,
+    }
+    input_size = input_size_map.get(args.dataset, 32)
     
-    model = DeadNeuronExperiment(
-        depth=args.depth,
-        in_channels=in_channels,
-        num_classes=num_classes,
-        base_channels=args.base_channels,
-        num_steps=args.time_steps,
-        beta=0.95,
-        learning_rate=args.lr,
-        init_method=args.init,
-        init_std=init_std,
-        block_type=args.block,
-        use_plasticity=not args.no_plasticity,
-        eta_stdp=args.eta_stdp
-    )
+    # Build model based on architecture type
+    if arch_name in ('vgg', 'plain', 'attention'):
+        model = ModernArchExperiment(
+            arch_type=arch_name,
+            depth=args.depth,
+            embed_dim=getattr(args, 'embed_dim', 64),
+            num_heads=getattr(args, 'num_heads', 4),
+            in_channels=in_channels,
+            num_classes=num_classes,
+            num_steps=args.time_steps,
+            beta=0.95,
+            learning_rate=args.lr,
+            weight_decay=args.weight_decay,
+            use_plasticity=not args.no_plasticity,
+            init_method=args.init,
+            init_std=init_std,
+            eta_stdp=args.eta_stdp,
+            target_rate=args.target_rate,
+            homeo_target=args.homeo_target,
+            snr_enabled=not args.snr_off,
+            snr_threshold=args.snr_threshold,
+            snr_steepness=args.snr_steepness,
+        )
+    else:
+        # Default: ResNet
+        model = DeadNeuronExperiment(
+            depth=args.depth,
+            in_channels=in_channels,
+            num_classes=num_classes,
+            base_channels=args.base_channels,
+            num_steps=args.time_steps,
+            beta=0.95,
+            learning_rate=args.lr,
+            init_method=args.init,
+            init_std=init_std,
+            block_type=args.block,
+            use_plasticity=not args.no_plasticity,
+            eta_stdp=args.eta_stdp,
+            target_rate=args.target_rate,
+            weight_decay=args.weight_decay,
+            input_size=input_size,
+            homeo_target=args.homeo_target,
+            snr_enabled=not args.snr_off,
+            snr_threshold=args.snr_threshold,
+            snr_steepness=args.snr_steepness,
+        )
     
     # Log model info
     total_params = sum(p.numel() for p in model.parameters())

@@ -1,0 +1,141 @@
+\documentclass[aspectratio=169]{beamer}
+\usetheme{Madrid}
+\usecolortheme{default}
+
+% Packages
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage{hyperref}
+\usepackage{xcolor}
+
+\title{CARE V5 \& V6: Resolving the BatchNorm Paradox}
+\subtitle{A Rigorous Cross-Architecture Ablation Suite for NeurIPS}
+\author{AUB Research Team}
+\date{\today}
+
+\begin{document}
+
+\begin{frame}
+    \titlepage
+\end{frame}
+
+\begin{frame}{Recap: The V4 "BatchNorm Paradox"}
+    \textbf{The Challenge:}
+    \begin{itemize}
+        \item In deep SNNs utilizing Batch Normalization (e.g., SEW-ResNets), CARE's homeostatic magnitude scaling of synaptic weights ($\Delta W$) was effectively \textbf{nullified}.
+        \item BN squashes the pre-activation variance back to $\sigma^2 = 1.0$, preventing the targeted rescue of dead/silent neurons.
+        \item Instead of rescuing neurons, standard CARE acted as \textbf{unsupervised directional noise}, introducing a "Plasticity Tax" dropping CIFAR-100 accuracy by ~14.7\%.
+    \end{itemize}
+    
+    \vspace{0.3cm}
+    \textbf{The Mission:} Definitively separate CARE's true rescue capability ("The Lazarus Effect") from the architectural interference of BatchNorm.
+\end{frame}
+
+\begin{frame}{The New Methodology: Bypassing the Nullspace}
+    \textbf{Targeting the Affine Scale ($\gamma$):}
+    \begin{itemize}
+        \item Instead of scaling the weights preceding the BN layer, CARE V5 shifts to targeting the explicit scale parameter ($\gamma$) of the BN layer itself.
+        \item \textit{Why?} $\gamma$ operations occur \textbf{after} normalization, directly controlling the variance that reaches the spiking threshold without being cancelled out. 
+    \end{itemize}
+
+    \vspace{0.3cm}
+    \begin{block}{The NeurIPS V5 Ablation Axes}
+        \begin{enumerate}
+            \item \textbf{Homeostatic Target Modification:} Weight vs. Gamma ($\gamma$) vs. Both.
+            \item \textbf{SNR / Grace Period:} Isolating stable backpropagation phases from dynamic interventions.
+            \item \textbf{Learning Rate Sensitivity ($\eta$):} Finding the stability threshold.
+            \item \textbf{Dataset Scaling:} Moving to CIFAR-100 to prove generalization.
+        \end{enumerate}
+    \end{block}
+\end{frame}
+
+\begin{frame}{V5 Ablation Results Matrix}
+    \textbf{The Output:} CARE Gamma successfully bypasses the BN nullspace and restores capacity. However, it imposes a strict accuracy penalty due to unsupervised local update divergence.
+    
+    \vspace{0.2cm}
+    \begin{table}[]
+        \centering
+        \resizebox{\textwidth}{!}{
+        \begin{tabular}{llcc}
+            \toprule
+            Axis & Experiment & Best Accuracy & Final Dead Neurons \\
+            \midrule
+            1 (Target) & Control (Normal Init) & 66.50\% (V4 Baseline) & N/A \\
+            1 & CARE (Gamma) & 43.89\% & 10.99\% \\
+            \midrule
+            3 (LR $\eta$) & $\eta = 1e-4$ (Slow) & \textbf{63.05}\% & 8.84\% \\
+            3 (LR $\eta$) & $\eta = 1e-3$ (Fast) & 48.62\% & 15.57\% \\
+            \midrule
+            5 (Sabotage) & Control (Sabotage Init) & \textbf{58.47}\% & 41.60\% \\
+            5 (Sabotage) & CARE-Gamma (Sabotage Init) & 47.40\% & \textbf{10.68}\% \\
+            \bottomrule
+        \end{tabular}}
+        \caption{Key Extracts from the completed 14-run V5 Suite (ResNet-18, CIFAR-10)}
+    \end{table}
+\end{frame}
+
+\begin{frame}{NeurIPS Viability: The Uncomfortable Truth}
+    \textbf{The Verdict:} Validating CARE strictly as a general accuracy-booster on ResNets is \textbf{not viable} for a top-tier venue.
+    
+    \begin{itemize}
+        \item \textbf{The Core Issue:} We successfully cure the disease (dead neurons) but harm the patient (accuracy). A capacity-rescue method that drops baseline accuracy by 10-15\% to maintain structural health will face heavy rejection prejudice.
+        \item \textbf{The "Wrong Patient" Problem:} ResNets naturally defend against structural degradation via skip connections. The topology readily adapts to dropping dead filters, negating the need for active rescue.
+    \end{itemize}
+    
+    \vspace{0.3cm}
+    \textbf{The Pivot:} We must apply CARE exclusively to environments where dead neurons result in \textbf{catastrophic failure} and demonstrate massive net-positive gains.
+\end{frame}
+
+\begin{frame}{Expanding the Scope: The V6 Cross-Architecture Suite}
+    \textbf{Supervisor Feedback constraint:} "ResNet metrics alone might be deemed cliché or overly constrained." 
+    
+    \vspace{0.2cm}
+    \textbf{Solution:} Create a universal standard validating CARE across distinct topological paradigms capable of isolating or amplifying the "Lazarus Effect."
+    
+    \begin{itemize}
+        \item \textbf{Plain ConvNets:} No skip connections, no BN. The ultimate "vanilla" testbed where standard CARE shines strongest.
+        \item \textbf{VGG-SNNs:} Deep, chain-like feedforward paths prone to catastrophic starvation.
+        \item \textbf{SEW-ResNets:} Our robust baseline, equipped with Gamma-targeted CARE.
+        \item \textbf{Spiking Attention (Transformer-style):} Exploring CARE's stability on sequence-to-sequence spatial architectures. 
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{The Ultimate Test: The "Sabotage / Lazarus" Initialization}
+    \textbf{Proof of Resilience:}
+    \begin{itemize}
+        \item A proper model must not only perform well but reliably recover from adversarial or catastrophic initial states.
+        \item We introduce the \textbf{Sabotage Initialization}: Forcing a massive proportion of network parameters into deeply suppressed/silent states across VGG, Plain, and ResNet architectures.
+    \end{itemize}
+    
+    \vspace{0.3cm}
+    \begin{table}[]
+        \centering
+        \begin{tabular}{lccc}
+            \toprule
+            Architecture & Rescue Target & Normal Init & Sabotage Init \\
+            \midrule
+            Plain ConvNet & \textbf{Weight Magnitude} & Expected ++ & Essential \\
+            VGG-11 & \textbf{Gamma Scaling} & Expected ++ & Essential \\
+            Spiking Attention & \textbf{Gamma Scaling} & Unknown & Essential \\
+            \bottomrule
+        \end{tabular}
+        \caption{The V6 Architecture Test matrix}
+    \end{table}
+
+\end{frame}
+
+\begin{frame}{Expected NeurIPS Outcomes \& The V6 Pivot}
+    \textbf{Shifted Objectives for Conference Readiness:}
+    \begin{enumerate}
+        \item \textbf{Zero-Skip Isolation}: Proving that while ResNets resist starvation, CARE is absolutely computationally essential for training extremely deep standard models (e.g., Deep VGGs or basic Spiking ViTs).
+        \item \textbf{Continual Learning (Task Transfer)}: Demonstrating that networks with actively preserved capacity (0\% dead neurons) avoid catastrophic forgetting drastically better than pruned ResNet baselines.
+        \item \textbf{Unstructured Pruning Robustness}: Analyzing if explicitly maintaining dense connections early in training yields structural graphs more resilient to extreme pruning.
+    \end{enumerate}
+    
+    \vspace{0.5cm}
+    \centering
+    \textit{STATUS: V5 complete. Shifting architecture targets for V6.}
+\end{frame}
+
+\end{document}

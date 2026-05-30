@@ -335,9 +335,14 @@ class DeadNeuronExperiment(pl.LightningModule):
         init_method: str = "sabotage",
         init_std: float = 0.01,
         eta_stdp: float = 0.005,
-        target_rate: float = 0.1,
+        target_rate: float = 0.02,
         block_type: str = 'sew',
+        input_size: int = 32,
         network: Optional[nn.Module] = None,
+        homeo_target: str = 'gamma',
+        snr_enabled: bool = True,
+        snr_threshold: float = 2.0,
+        snr_steepness: float = 5.0,
         **kwargs: Any,
     ) -> None:
         super().__init__()
@@ -365,6 +370,11 @@ class DeadNeuronExperiment(pl.LightningModule):
                 threshold=threshold,
                 slope=slope,
                 block_type=block_type,
+                input_size=input_size,
+                homeo_target=homeo_target,
+                snr_enabled=snr_enabled,
+                snr_threshold=snr_threshold,
+                snr_steepness=snr_steepness,
             )
         
         # Apply initialization
@@ -387,11 +397,11 @@ class DeadNeuronExperiment(pl.LightningModule):
         """Training step."""
         inputs, targets = batch
         
-        spike_counts, _ = self(inputs)
-        spike_rates = spike_counts / self.num_steps
-        loss = F.cross_entropy(spike_rates, targets)
+        spike_counts, mem_out = self(inputs)
+        # Use final membrane potential as logits (continuous, well-scaled for softmax)
+        loss = F.cross_entropy(mem_out, targets)
         
-        preds = spike_counts.argmax(dim=-1)
+        preds = mem_out.argmax(dim=-1)
         acc = (preds == targets).float().mean()
         
         self.log('train/loss', loss, on_step=True, on_epoch=True, prog_bar=True)
@@ -412,16 +422,19 @@ class DeadNeuronExperiment(pl.LightningModule):
         """Validation step."""
         inputs, targets = batch
         
-        spike_counts, _ = self(inputs)
-        spike_rates = spike_counts / self.num_steps
-        
-        loss = F.cross_entropy(spike_rates, targets)
-        preds = spike_counts.argmax(dim=-1)
+        spike_counts, mem_out = self(inputs)
+        # Use final membrane potential as logits
+        loss = F.cross_entropy(mem_out, targets)
+        preds = mem_out.argmax(dim=-1)
         acc = (preds == targets).float().mean()
         
         self.log('val/loss', loss, on_epoch=True, prog_bar=True)
         self.log('val/accuracy', acc, on_epoch=True, prog_bar=True)
         
+        # PREVENT OOM IN VALIDATION
+        if hasattr(self.network, 'reset_spike_records'):
+            self.network.reset_spike_records()
+            
         return {'val_loss': loss, 'val_accuracy': acc}
     
     def configure_optimizers(self) -> Dict[str, Any]:

@@ -1,58 +1,38 @@
 """
-CARE V3 Experiment Suite - Group A: Competitive Accuracy
-=========================================================
-CIFAR-10 at 100 epochs with T=8 timesteps, SEW-ResNet18.
-Tests Plasticity ON/OFF under Normal and Sabotage Init.
+CARE V3 - Rescue Validation
+===========================
+Executes a focused 30-epoch validation to prove the CARE 
+Rescue phenomenon using severe sabotage initialization (std=0.001).
 
-Output: results/v3/
+Tests: CIFAR-10 Sabotage (Control OFF) vs CIFAR-10 Sabotage (CARE ON)
 """
 
 import subprocess
 import sys
 import os
-os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:False'
 import time
 from pathlib import Path
 
 EXPERIMENTS = [
     {
-        "name": "cifar10_norm_control_v3",
-        "dataset": "cifar10",
-        "init": "normal",
-        "plasticity": False,
-        "epochs": 100,
-        "time_steps": 8,
-        "eta_stdp": 0.001,
-    },
-    {
-        "name": "cifar10_norm_care_v3",
-        "dataset": "cifar10",
-        "init": "normal",
-        "plasticity": True,
-        "epochs": 100,
-        "time_steps": 8,
-        "eta_stdp": 0.001,
-    },
-    {
-        "name": "cifar10_sab_control_v3",
+        "name": "cifar10_severe_sabotage_control",
         "dataset": "cifar10",
         "init": "sabotage",
         "plasticity": False,
-        "epochs": 100,
+        "epochs": 10,
         "time_steps": 8,
         "eta_stdp": 0.001,
     },
     {
-        "name": "cifar10_sab_care_v3",
+        "name": "cifar10_severe_sabotage_care",
         "dataset": "cifar10",
         "init": "sabotage",
         "plasticity": True,
-        "epochs": 100,
+        "epochs": 10,
         "time_steps": 8,
         "eta_stdp": 0.001,
-    },
+    }
 ]
-
 
 def run_experiment(exp: dict, dry_run: bool = False):
     cmd = [
@@ -67,7 +47,7 @@ def run_experiment(exp: dict, dry_run: bool = False):
         "--block", "sew",
         "--depth", "18",
         "--batch_size", "64",
-        "--output_dir", "results/v3",
+        "--output_dir", "results/v3_rescue_validation",
     ]
     if not exp["plasticity"]:
         cmd.append("--no_plasticity")
@@ -77,7 +57,6 @@ def run_experiment(exp: dict, dry_run: bool = False):
     print(f"{'='*70}")
 
     if dry_run:
-        print("  [DRY RUN] Skipping execution.")
         return
 
     start = time.time()
@@ -88,22 +67,17 @@ def run_experiment(exp: dict, dry_run: bool = False):
     status = "SUCCESS" if result.returncode == 0 else f"FAILED (code {result.returncode})"
     print(f"\n  [{status}] {exp['name']}  ({mins:.1f} min)")
 
-
 def main():
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
-    # Override output directory in run_flexible_experiment.py
-    # by modifying the results path expectation
-    out_base = Path("results/v3")
+    out_base = Path("results/v3_rescue_validation")
     out_base.mkdir(parents=True, exist_ok=True)
 
     print("=" * 70)
-    print("  CARE V3 - Group A: Competitive Accuracy (CIFAR-10, 100 Epochs)")
-    print(f"  Total experiments: {len(EXPERIMENTS)}")
-    print(f"  Output: {out_base}")
+    print("  CARE V3 - Severe Sabotage Rescue Validation")
     print("=" * 70)
 
     total_start = time.time()
@@ -113,9 +87,8 @@ def main():
 
     total_mins = (time.time() - total_start) / 60
     print(f"\n{'='*70}")
-    print(f"  ALL DONE! Total time: {total_mins:.1f} min ({total_mins/60:.1f} hours)")
+    print(f"  ALL DONE! Total time: {total_mins:.1f} min")
     print(f"{'='*70}")
-
 
 if __name__ == "__main__":
     main()

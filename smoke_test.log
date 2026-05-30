@@ -1,0 +1,25 @@
+Test 1: Import chain...
+  PASS: All imports successful
+
+Test 2: CareResNet with in_channels=3...
+ Using SEW-ResNet Blocks (Spike Addition)
+  PASS: Output shape=torch.Size([2, 10]), expected [2, 10]
+
+Test 3: CareResNet with in_channels=1...
+ Using MS-ResNet Blocks (Membrane Shortcut)
+  PASS: Output shape=torch.Size([2, 10]), expected [2, 10]
+
+Test 4: DeadNeuronExperiment internal build...
+ Using SEW-ResNet Blocks (Spike Addition)
+[NORMAL INIT] Applied to SEW-ResNet18 (base_ch=64)
+  PASS: Output shape=torch.Size([2, 10])
+
+Test 5: SNR gating buffers exist...
+  PASS: CareLIFConv has SNR buffers
+
+Test 6: MSResNetBlock SNR gating...
+  PASS: MSResNetBlock has SNR buffers for conv2
+
+============================================================
+ALL SMOKE TESTS PASSED
+============================================================

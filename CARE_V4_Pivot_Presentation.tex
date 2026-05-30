@@ -1,0 +1,142 @@
+\documentclass[aspectratio=169]{beamer}
+\usetheme{Madrid}
+\usecolortheme{default}
+
+% Packages
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage{hyperref}
+\usepackage{xcolor}
+
+\title{CARE V4: Analyzing the ResNet Bottleneck}
+\subtitle{Discovering the BatchNorm Nullification Effect}
+\author{AUB Research Team}
+\date{\today}
+
+\begin{document}
+
+\begin{frame}
+    \titlepage
+\end{frame}
+
+\begin{frame}{Recap: The Original Promise of CARE}
+    \textbf{The Hypothesis:}
+    \begin{itemize}
+        \item standard surrogate gradients lack mechanisms to recover dead/silent pathways in deep Spiking Neural Networks (SNNs).
+        \item CARE (Content-Aware Re-Activation) applies homeostatic magnitude scaling to incoming weights of silent neurons, acting as a dynamic "capacity insurance."
+    \end{itemize}
+    
+    \vspace{0.3cm}
+    \textbf{Early Success in VGGs:}
+    \begin{itemize}
+        \item In VGG architectures lacking residual connections, CARE successfully rescued models experiencing catastrophic starvation, reducing dead neurons from ~99\% to ~1\%.
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{The Scaling Failure: Translating to ResNet}
+    \textbf{The NeurIPS Rigorous Ablation Suite Results:}
+    \begin{itemize}
+        \item Moving to ResNet-18/34 block structures exposed a fundamental issue.
+        \item We observed a significant performance "Tax" instead of enhanced capacity.
+    \end{itemize}
+    
+    \vspace{0.3cm}
+    \begin{table}[]
+        \centering
+        \begin{tabular}{lrrcc}
+            \toprule
+            Setting & Dataset & Control & CARE & $\Delta$ Accuracy \\
+            \midrule
+            Phase 1 & CIFAR-100 & \textbf{38.5\%} & 23.8\% & -14.7\% \\
+            Phase 2 & CIFAR-10 ($T=2$) & \textbf{66.5\%} & 45.2\% & -21.3\% \\
+            \bottomrule
+        \end{tabular}
+        \caption{NeurIPS ResNet-18 Baseline Suite (30 Epochs)}
+    \end{table}
+
+    \begin{itemize}
+        \item \textbf{Conclusion:} CARE introduces detrimental weight updates without the intended recovery benefits in properly initialized ResNets.
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{The Starvation Test Reality}
+    \textbf{Testing the "Absolute Rescue" Stress Case:}
+    \begin{itemize}
+        \item We re-ran the Starvation Stress Test using high weight decay ($\sigma = 5 \times 10^{-3}$) to force capacity collapse in ResNet-18 (CIFAR-10).
+    \end{itemize}
+    
+    \vspace{0.2cm}
+    \begin{columns}
+        \begin{column}{0.5\textwidth}
+            \begin{block}{Static Solution (Control)}
+                \begin{itemize}
+                    \item \textbf{Accuracy:} 25.4\%
+                    \item \textbf{Dead Ratio:} 0\%
+                    \item \textbf{Status:} Survived easily due to normal initialization and residual paths.
+                \end{itemize}
+            \end{block}
+        \end{column}
+        \begin{column}{0.5\textwidth}
+            \begin{block}{Dynamic Solution (CARE)}
+                \begin{itemize}
+                    \item \textbf{Accuracy:} 22.8\%
+                    \item \textbf{Dead Ratio:} 0.3\%
+                    \item \textbf{Status:} Underperformed the control group.
+                \end{itemize}
+            \end{block}
+        \end{column}
+    \end{columns}
+
+    \vspace{0.4cm}
+    \centering
+    \textit{Finding: The Control ResNet does not fail catastrophically under extreme decay. The "Absolute Rescue" hypothesis does not hold for properly initialized Residual Networks.}
+\end{frame}
+
+\begin{frame}{The Breakthrough: The BatchNorm Nullspace}
+    \textbf{Why Does Homeostasis Fail in ResNets?}
+    \begin{itemize}
+        \item Almost all modern deep SNNs (including our SEW-ResNets) use Batch Normalization (BN) prior to the activation functions.
+        \item CARE's primary mechanism involves scaling weight \textbf{magnitudes} to increase pre-synaptic variance until thresholding occurs.
+    \end{itemize}
+    
+    \vspace{0.3cm}
+    \begin{block}{The Nullification Effect}
+        \begin{enumerate}
+            \item CARE increases weight magnitudes $W \leftarrow W + \Delta_w$.
+            \item This increases the variance of the convolution output $x_{pre} = W * x$.
+            \item BatchNorm mathematically squashes $x_{pre}$ back to a unit variance $\sigma^2 = 1.0$.
+            \item The drive to the neuron remains unchanged; \textbf{the intended magnitude boost is perfectly nullified}.
+        \end{enumerate}
+    \end{block}
+\end{frame}
+
+\begin{frame}{The Actual Effect of CARE (The Poisoning Mechanism)}
+    \textbf{What exactly is the "Plasticity Tax"?}
+    \begin{itemize}
+        \item Because the overall variance boost is cancelled out, CARE does not rescue neurons.
+        \item However, because weights update asynchronously and asymmetrically depending on their signs, CARE still rotates the effective gradient \textbf{direction}.
+        \item This introduces unsupervised noise rotating the learned features away from the task objective without providing the homeostatic bailout.
+    \end{itemize}
+    
+    \vspace{0.3cm}
+    \centering
+    \textit{CARE acts as pure "Directional Noise" in the presence of Batch Normalization.}
+\end{frame}
+
+\begin{frame}{Future Directions and Pivots}
+    \textbf{Where do we go from here?}
+    
+    \begin{itemize}
+        \item \textbf{Option A: Targeting the Gamma ($\gamma$):}
+        Since BN nullifies weight magnitude but uses its own affine scaled parameter ($\gamma$) to control post-BN variance, we can apply CARE's SNR-gated homeostasis directly to the BN $\gamma$ scale parameters.
+        
+        \item \textbf{Option B: Alternative Normalization:}
+        Investigate whether CARE can safely replace BatchNorm completely (e.g., combining CARE with Weight Standardization), offering a theoretical advantage in sequence-processing SNNs.
+        
+        \item \textbf{Option C: Shifting the Narrative:}
+        Publish a focused analysis paper detailing why standard STDP-like homeostasis fails in SNNs that employ Deep Learning tricks (like BN), highlighting the mathematical nullspace boundary.
+    \end{itemize}
+\end{frame}
+
+\end{document}

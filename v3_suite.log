@@ -1,0 +1,574 @@
+=== CARE V3 Rigorous Ablation Suite ===
+[2026-03-19 07:09:20] INFO - ============================================================
+[2026-03-19 07:09:20] INFO - EXPERIMENT: fashion_mnist ResNet-18 (sew) Init=normal Plasticity=True base_ch=64 seed=42
+[2026-03-19 07:09:20] INFO - ============================================================
+Seed set to 42
+[2026-03-19 07:09:20] INFO - Dataset=fashion_mnist, InChannels=1, NumClasses=10, TrainSamples=60000, TestSamples=10000
+ Using SEW-ResNet Blocks (Spike Addition)
+[NORMAL INIT] Applied to SEW-ResNet18 (base_ch=64)
+[2026-03-19 07:09:20] INFO - Model Params: 11,175,387 total, 11,175,387 trainable
+GPU available: True (cuda), used: True
+TPU available: False, using: 0 TPU cores
+💡 Tip: For seamless cloud logging and experiment tracking, try installing [litlogger](https://pypi.org/project/litlogger/) to enable LitLogger, which logs metrics and artifacts automatically to the Lightning Experiments platform.
+[2026-03-19 07:09:20] INFO - Starting training...
+LOCAL_RANK: 0 - CUDA_VISIBLE_DEVICES: [0]
+┏━━┳━━━━━━━━━┳━┳━━┳━┳━━┓
+┃  ┃ Name    ┃ ┃  ┃ ┃  ┃
+┡━━╇━━━━━━━━━╇━╇━━╇━╇━━┩
+│  │ network │ │  │ │  │
+└──┴─────────┴─┴──┴─┴──┘
+Trainable params: 11.2 
+M                      
+Non-trainable params: 0
+Total params: 11.2 M   
+Total estimated model  
+params size (MB): 44   
+Modules in train mode: 
+93                     
+Modules in eval mode: 0
+Total FLOPs: 0         
+`Trainer.fit` stopped: `max_epochs=30` reached.
+Epoch 29/29 ━ … 0… … v_…
+                •    0.…
+                0…   tr…
+                     1.…
+                     tr…
+                     0.…
+                     va…
+                     1.…
+                     va…
+                     0.…
+                     tr…
+                     1.…
+                     tr…
+                     0.…
+[2026-03-19 07:57:51] INFO - Training complete. Summary: {'final_dead_ratio': 0.026383196721311477, 'best_accuracy': 0.7106999754905701}
+[2026-03-19 07:57:54] INFO - ============================================================
+[2026-03-19 07:57:54] INFO - EXPERIMENT: fashion_mnist ResNet-18 (sew) Init=normal Plasticity=False base_ch=64 seed=42
+[2026-03-19 07:57:54] INFO - ============================================================
+Seed set to 42
+[2026-03-19 07:57:54] INFO - Dataset=fashion_mnist, InChannels=1, NumClasses=10, TrainSamples=60000, TestSamples=10000
+ Using SEW-ResNet Blocks (Spike Addition)
+[NORMAL INIT] Applied to SEW-ResNet18 (base_ch=64)
+[2026-03-19 07:57:54] INFO - Model Params: 11,175,387 total, 11,175,387 trainable
+GPU available: True (cuda), used: True
+TPU available: False, using: 0 TPU cores
+💡 Tip: For seamless cloud logging and experiment tracking, try installing [litlogger](https://pypi.org/project/litlogger/) to enable LitLogger, which logs metrics and artifacts automatically to the Lightning Experiments platform.
+[2026-03-19 07:57:54] INFO - Starting training...
+LOCAL_RANK: 0 - CUDA_VISIBLE_DEVICES: [0]
+┏━━┳━━━━━━━━━┳━┳━━┳━┳━━┓
+┃  ┃ Name    ┃ ┃  ┃ ┃  ┃
+┡━━╇━━━━━━━━━╇━╇━━╇━╇━━┩
+│  │ network │ │  │ │  │
+└──┴─────────┴─┴──┴─┴──┘
+Trainable params: 11.2 
+M                      
+Non-trainable params: 0
+Total params: 11.2 M   
+Total estimated model  
+params size (MB): 44   
+Modules in train mode: 
+93                     
+Modules in eval mode: 0
+Total FLOPs: 0         
+`Trainer.fit` stopped: `max_epochs=30` reached.
+Epoch 29/29 ━ … 0… … v_…
+                •    0.…
+                0…   tr…
+                     1.…
+                     tr…
+                     0.…
+                     va…
+                     1.…
+                     va…
+                     0.…
+                     tr…
+                     1.…
+                     tr…
+                     0.…
+[2026-03-19 08:54:42] INFO - Training complete. Summary: {'final_dead_ratio': 0.0, 'best_accuracy': 0.7508999705314636}
+[2026-03-19 08:54:44] INFO - ============================================================
+[2026-03-19 08:54:44] INFO - EXPERIMENT: fashion_mnist ResNet-18 (sew) Init=sabotage Plasticity=True base_ch=64 seed=42
+[2026-03-19 08:54:44] INFO - ============================================================
+Seed set to 42
+[2026-03-19 08:54:45] INFO - Dataset=fashion_mnist, InChannels=1, NumClasses=10, TrainSamples=60000, TestSamples=10000
+ Using SEW-ResNet Blocks (Spike Addition)
+[SABOTAGE INIT] Applied with std=0.001 to SEW-ResNet18 (base_ch=64)
+[2026-03-19 08:54:45] INFO - Model Params: 11,175,387 total, 11,175,387 trainable
+GPU available: True (cuda), used: True
+TPU available: False, using: 0 TPU cores
+💡 Tip: For seamless cloud logging and experiment tracking, try installing [litlogger](https://pypi.org/project/litlogger/) to enable LitLogger, which logs metrics and artifacts automatically to the Lightning Experiments platform.
+[2026-03-19 08:54:45] INFO - Starting training...
+LOCAL_RANK: 0 - CUDA_VISIBLE_DEVICES: [0]
+┏━━┳━━━━━━━━━┳━┳━━┳━┳━━┓
+┃  ┃ Name    ┃ ┃  ┃ ┃  ┃
+┡━━╇━━━━━━━━━╇━╇━━╇━╇━━┩
+│  │ network │ │  │ │  │
+└──┴─────────┴─┴──┴─┴──┘
+Trainable params: 11.2 
+M                      
+Non-trainable params: 0
+Total params: 11.2 M   
+Total estimated model  
+params size (MB): 44   
+Modules in train mode: 
+93                     
+Modules in eval mode: 0
+Total FLOPs: 0         
+`Trainer.fit` stopped: `max_epochs=30` reached.
+Epoch 29/29 ━ … 0… … v_…
+                •    0.…
+                0…   tr…
+                     1.…
+                     tr…
+                     0.…
+                     va…
+                     1.…
+                     va…
+                     0.…
+                     tr…
+                     1.…
+                     tr…
+                     0.…
+[2026-03-19 09:38:38] INFO - Training complete. Summary: {'final_dead_ratio': 0.1992827868852459, 'best_accuracy': 0.6218000054359436}
+[2026-03-19 09:38:41] INFO - ============================================================
+[2026-03-19 09:38:41] INFO - EXPERIMENT: fashion_mnist ResNet-18 (sew) Init=sabotage Plasticity=False base_ch=64 seed=42
+[2026-03-19 09:38:41] INFO - ============================================================
+Seed set to 42
+[2026-03-19 09:38:41] INFO - Dataset=fashion_mnist, InChannels=1, NumClasses=10, TrainSamples=60000, TestSamples=10000
+ Using SEW-ResNet Blocks (Spike Addition)
+[SABOTAGE INIT] Applied with std=0.001 to SEW-ResNet18 (base_ch=64)
+[2026-03-19 09:38:41] INFO - Model Params: 11,175,387 total, 11,175,387 trainable
+GPU available: True (cuda), used: True
+TPU available: False, using: 0 TPU cores
+💡 Tip: For seamless cloud logging and experiment tracking, try installing [litlogger](https://pypi.org/project/litlogger/) to enable LitLogger, which logs metrics and artifacts automatically to the Lightning Experiments platform.
+[2026-03-19 09:38:41] INFO - Starting training...
+LOCAL_RANK: 0 - CUDA_VISIBLE_DEVICES: [0]
+┏━━┳━━━━━━━━━┳━┳━━┳━┳━━┓
+┃  ┃ Name    ┃ ┃  ┃ ┃  ┃
+┡━━╇━━━━━━━━━╇━╇━━╇━╇━━┩
+│  │ network │ │  │ │  │
+└──┴─────────┴─┴──┴─┴──┘
+Trainable params: 11.2 
+M                      
+Non-trainable params: 0
+Total params: 11.2 M   
+Total estimated model  
+params size (MB): 44   
+Modules in train mode: 
+93                     
+Modules in eval mode: 0
+Total FLOPs: 0         
+`Trainer.fit` stopped: `max_epochs=30` reached.
+Epoch 29/29 ━ … 0… … v_…
+                •    0.…
+                0…   tr…
+                     2.…
+                     tr…
+                     0.…
+                     va…
+                     2.…
+                     va…
+                     0.…
+                     tr…
+                     2.…
+                     tr…
+                     0.…
+[2026-03-19 10:22:29] INFO - Training complete. Summary: {'final_dead_ratio': 0.9994877049180327, 'best_accuracy': 0.10000000149011612}
+[2026-03-19 10:22:32] INFO - ============================================================
+[2026-03-19 10:22:32] INFO - EXPERIMENT: cifar10 ResNet-18 (sew) Init=normal Plasticity=True base_ch=64 seed=42
+[2026-03-19 10:22:32] INFO - ============================================================
+Seed set to 42
+Files already downloaded and verified
+Files already downloaded and verified
+[2026-03-19 10:22:33] INFO - Dataset=cifar10, InChannels=3, NumClasses=10, TrainSamples=50000, TestSamples=10000
+ Using SEW-ResNet Blocks (Spike Addition)
+[NORMAL INIT] Applied to SEW-ResNet18 (base_ch=64)
+[2026-03-19 10:22:33] INFO - Model Params: 11,181,659 total, 11,181,659 trainable
+GPU available: True (cuda), used: True
+TPU available: False, using: 0 TPU cores
+💡 Tip: For seamless cloud logging and experiment tracking, try installing [litlogger](https://pypi.org/project/litlogger/) to enable LitLogger, which logs metrics and artifacts automatically to the Lightning Experiments platform.
+[2026-03-19 10:22:33] INFO - Starting training...
+LOCAL_RANK: 0 - CUDA_VISIBLE_DEVICES: [0]
+┏━━┳━━━━━━━━━┳━┳━━┳━┳━━┓
+┃  ┃ Name    ┃ ┃  ┃ ┃  ┃
+┡━━╇━━━━━━━━━╇━╇━━╇━╇━━┩
+│  │ network │ │  │ │  │
+└──┴─────────┴─┴──┴─┴──┘
+Trainable params: 11.2 
+M                      
+Non-trainable params: 0
+Total params: 11.2 M   
+Total estimated model  
+params size (MB): 44   
+Modules in train mode: 
+93                     
+Modules in eval mode: 0
+Total FLOPs: 0         
+`Trainer.fit` stopped: `max_epochs=30` reached.
+Epoch 29/29 ━ … 0… … v_…
+                •    0.…
+                0…   tr…
+                     2.…
+                     tr…
+                     0.…
+                     va…
+                     2.…
+                     va…
+                     0.…
+                     tr…
+                     2.…
+                     tr…
+                     0.…
+[2026-03-19 10:59:07] INFO - Training complete. Summary: {'final_dead_ratio': 0.015625, 'best_accuracy': 0.23430000245571136}
+[2026-03-19 10:59:09] INFO - ============================================================
+[2026-03-19 10:59:09] INFO - EXPERIMENT: cifar10 ResNet-18 (sew) Init=normal Plasticity=False base_ch=64 seed=42
+[2026-03-19 10:59:09] INFO - ============================================================
+Seed set to 42
+Files already downloaded and verified
+Files already downloaded and verified
+[2026-03-19 10:59:10] INFO - Dataset=cifar10, InChannels=3, NumClasses=10, TrainSamples=50000, TestSamples=10000
+ Using SEW-ResNet Blocks (Spike Addition)
+[NORMAL INIT] Applied to SEW-ResNet18 (base_ch=64)
+[2026-03-19 10:59:10] INFO - Model Params: 11,181,659 total, 11,181,659 trainable
+GPU available: True (cuda), used: True
+TPU available: False, using: 0 TPU cores
+💡 Tip: For seamless cloud logging and experiment tracking, try installing [litlogger](https://pypi.org/project/litlogger/) to enable LitLogger, which logs metrics and artifacts automatically to the Lightning Experiments platform.
+[2026-03-19 10:59:10] INFO - Starting training...
+LOCAL_RANK: 0 - CUDA_VISIBLE_DEVICES: [0]
+┏━━┳━━━━━━━━━┳━┳━━┳━┳━━┓
+┃  ┃ Name    ┃ ┃  ┃ ┃  ┃
+┡━━╇━━━━━━━━━╇━╇━━╇━╇━━┩
+│  │ network │ │  │ │  │
+└──┴─────────┴─┴──┴─┴──┘
+Trainable params: 11.2 
+M                      
+Non-trainable params: 0
+Total params: 11.2 M   
+Total estimated model  
+params size (MB): 44   
+Modules in train mode: 
+93                     
+Modules in eval mode: 0
+Total FLOPs: 0         
+`Trainer.fit` stopped: `max_epochs=30` reached.
+Epoch 29/29 ━ … 0… … v_…
+                •    0.…
+                0…   tr…
+                     1.…
+                     tr…
+                     0.…
+                     va…
+                     2.…
+                     va…
+                     0.…
+                     tr…
+                     1.…
+                     tr…
+                     0.…
+[2026-03-19 11:35:48] INFO - Training complete. Summary: {'final_dead_ratio': 0.0, 'best_accuracy': 0.27880001068115234}
+[2026-03-19 11:35:51] INFO - ============================================================
+[2026-03-19 11:35:51] INFO - EXPERIMENT: cifar10 ResNet-18 (sew) Init=sabotage Plasticity=True base_ch=64 seed=42
+[2026-03-19 11:35:51] INFO - ============================================================
+Seed set to 42
+Files already downloaded and verified
+Files already downloaded and verified
+[2026-03-19 11:35:52] INFO - Dataset=cifar10, InChannels=3, NumClasses=10, TrainSamples=50000, TestSamples=10000
+ Using SEW-ResNet Blocks (Spike Addition)
+[SABOTAGE INIT] Applied with std=0.001 to SEW-ResNet18 (base_ch=64)
+[2026-03-19 11:35:52] INFO - Model Params: 11,181,659 total, 11,181,659 trainable
+GPU available: True (cuda), used: True
+TPU available: False, using: 0 TPU cores
+💡 Tip: For seamless cloud logging and experiment tracking, try installing [litlogger](https://pypi.org/project/litlogger/) to enable LitLogger, which logs metrics and artifacts automatically to the Lightning Experiments platform.
+[2026-03-19 11:35:52] INFO - Starting training...
+LOCAL_RANK: 0 - CUDA_VISIBLE_DEVICES: [0]
+┏━━┳━━━━━━━━━┳━┳━━┳━┳━━┓
+┃  ┃ Name    ┃ ┃  ┃ ┃  ┃
+┡━━╇━━━━━━━━━╇━╇━━╇━╇━━┩
+│  │ network │ │  │ │  │
+└──┴─────────┴─┴──┴─┴──┘
+Trainable params: 11.2 
+M                      
+Non-trainable params: 0
+Total params: 11.2 M   
+Total estimated model  
+params size (MB): 44   
+Modules in train mode: 
+93                     
+Modules in eval mode: 0
+Total FLOPs: 0         
+`Trainer.fit` stopped: `max_epochs=30` reached.
+Epoch 29/29 ━ … 0… … v_…
+                •    0.…
+                0…   tr…
+                     2.…
+                     tr…
+                     0.…
+                     va…
+                     2.…
+                     va…
+                     0.…
+                     tr…
+                     2.…
+                     tr…
+                     0.…
+[2026-03-19 12:11:40] INFO - Training complete. Summary: {'final_dead_ratio': 0.3055840163934426, 'best_accuracy': 0.17399999499320984}
+[2026-03-19 12:11:43] INFO - ============================================================
+[2026-03-19 12:11:43] INFO - EXPERIMENT: cifar10 ResNet-18 (sew) Init=sabotage Plasticity=False base_ch=64 seed=42
+[2026-03-19 12:11:43] INFO - ============================================================
+Seed set to 42
+Files already downloaded and verified
+Files already downloaded and verified
+[2026-03-19 12:11:44] INFO - Dataset=cifar10, InChannels=3, NumClasses=10, TrainSamples=50000, TestSamples=10000
+ Using SEW-ResNet Blocks (Spike Addition)
+[SABOTAGE INIT] Applied with std=0.001 to SEW-ResNet18 (base_ch=64)
+[2026-03-19 12:11:44] INFO - Model Params: 11,181,659 total, 11,181,659 trainable
+GPU available: True (cuda), used: True
+TPU available: False, using: 0 TPU cores
+💡 Tip: For seamless cloud logging and experiment tracking, try installing [litlogger](https://pypi.org/project/litlogger/) to enable LitLogger, which logs metrics and artifacts automatically to the Lightning Experiments platform.
+[2026-03-19 12:11:44] INFO - Starting training...
+LOCAL_RANK: 0 - CUDA_VISIBLE_DEVICES: [0]
+┏━━┳━━━━━━━━━┳━┳━━┳━┳━━┓
+┃  ┃ Name    ┃ ┃  ┃ ┃  ┃
+┡━━╇━━━━━━━━━╇━╇━━╇━╇━━┩
+│  │ network │ │  │ │  │
+└──┴─────────┴─┴──┴─┴──┘
+Trainable params: 11.2 
+M                      
+Non-trainable params: 0
+Total params: 11.2 M   
+Total estimated model  
+params size (MB): 44   
+Modules in train mode: 
+93                     
+Modules in eval mode: 0
+Total FLOPs: 0         
+`Trainer.fit` stopped: `max_epochs=30` reached.
+Epoch 29/29 ━ … 0… … v_…
+                •    0.…
+                0…   tr…
+                     2.…
+                     tr…
+                     0.…
+                     va…
+                     2.…
+                     va…
+                     0.…
+                     tr…
+                     2.…
+                     tr…
+                     0.…
+[2026-03-19 12:46:52] INFO - Training complete. Summary: {'final_dead_ratio': 1.0, 'best_accuracy': 0.10000000149011612}
+[2026-03-19 12:46:55] INFO - ============================================================
+[2026-03-19 12:46:55] INFO - EXPERIMENT: tiny_imagenet ResNet-18 (sew) Init=normal Plasticity=True base_ch=64 seed=42
+[2026-03-19 12:46:55] INFO - ============================================================
+Seed set to 42
+Traceback (most recent call last):
+  File "/media/samsung8T/Hafez/CARE-V1/scripts/run_flexible_experiment.py", line 245, in <module>
+    main()
+  File "/media/samsung8T/Hafez/CARE-V1/scripts/run_flexible_experiment.py", line 241, in main
+    run_experiment(args, results_dir)
+  File "/media/samsung8T/Hafez/CARE-V1/scripts/run_flexible_experiment.py", line 176, in run_experiment
+    train_loader, test_loader, in_channels, num_classes = get_dataloaders(
+                                                          ^^^^^^^^^^^^^^^^
+  File "/media/samsung8T/Hafez/CARE-V1/scripts/run_flexible_experiment.py", line 126, in get_dataloaders
+    train_ds = datasets.ImageFolder(str(tiny_path / 'train'), transform=transform_train)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/mariett_team/MariettEnv/lib/python3.11/site-packages/torchvision/datasets/folder.py", line 309, in __init__
+    super().__init__(
+  File "/opt/mariett_team/MariettEnv/lib/python3.11/site-packages/torchvision/datasets/folder.py", line 144, in __init__
+    classes, class_to_idx = self.find_classes(self.root)
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/mariett_team/MariettEnv/lib/python3.11/site-packages/torchvision/datasets/folder.py", line 218, in find_classes
+    return find_classes(directory)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/mariett_team/MariettEnv/lib/python3.11/site-packages/torchvision/datasets/folder.py", line 40, in find_classes
+    classes = sorted(entry.name for entry in os.scandir(directory) if entry.is_dir())
+                                             ^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: 'data/tiny-imagenet-200/train'
+[2026-03-19 12:46:58] INFO - ============================================================
+[2026-03-19 12:46:58] INFO - EXPERIMENT: tiny_imagenet ResNet-18 (sew) Init=normal Plasticity=False base_ch=64 seed=42
+[2026-03-19 12:46:58] INFO - ============================================================
+Seed set to 42
+Traceback (most recent call last):
+  File "/media/samsung8T/Hafez/CARE-V1/scripts/run_flexible_experiment.py", line 245, in <module>
+    main()
+  File "/media/samsung8T/Hafez/CARE-V1/scripts/run_flexible_experiment.py", line 241, in main
+    run_experiment(args, results_dir)
+  File "/media/samsung8T/Hafez/CARE-V1/scripts/run_flexible_experiment.py", line 176, in run_experiment
+    train_loader, test_loader, in_channels, num_classes = get_dataloaders(
+                                                          ^^^^^^^^^^^^^^^^
+  File "/media/samsung8T/Hafez/CARE-V1/scripts/run_flexible_experiment.py", line 126, in get_dataloaders
+    train_ds = datasets.ImageFolder(str(tiny_path / 'train'), transform=transform_train)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/mariett_team/MariettEnv/lib/python3.11/site-packages/torchvision/datasets/folder.py", line 309, in __init__
+    super().__init__(
+  File "/opt/mariett_team/MariettEnv/lib/python3.11/site-packages/torchvision/datasets/folder.py", line 144, in __init__
+    classes, class_to_idx = self.find_classes(self.root)
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/mariett_team/MariettEnv/lib/python3.11/site-packages/torchvision/datasets/folder.py", line 218, in find_classes
+    return find_classes(directory)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/mariett_team/MariettEnv/lib/python3.11/site-packages/torchvision/datasets/folder.py", line 40, in find_classes
+    classes = sorted(entry.name for entry in os.scandir(directory) if entry.is_dir())
+                                             ^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: 'data/tiny-imagenet-200/train'
+[2026-03-19 12:47:01] INFO - ============================================================
+[2026-03-19 12:47:01] INFO - EXPERIMENT: tiny_imagenet ResNet-18 (sew) Init=sabotage Plasticity=True base_ch=64 seed=42
+[2026-03-19 12:47:01] INFO - ============================================================
+Seed set to 42
+Traceback (most recent call last):
+  File "/media/samsung8T/Hafez/CARE-V1/scripts/run_flexible_experiment.py", line 245, in <module>
+    main()
+  File "/media/samsung8T/Hafez/CARE-V1/scripts/run_flexible_experiment.py", line 241, in main
+    run_experiment(args, results_dir)
+  File "/media/samsung8T/Hafez/CARE-V1/scripts/run_flexible_experiment.py", line 176, in run_experiment
+    train_loader, test_loader, in_channels, num_classes = get_dataloaders(
+                                                          ^^^^^^^^^^^^^^^^
+  File "/media/samsung8T/Hafez/CARE-V1/scripts/run_flexible_experiment.py", line 126, in get_dataloaders
+    train_ds = datasets.ImageFolder(str(tiny_path / 'train'), transform=transform_train)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/mariett_team/MariettEnv/lib/python3.11/site-packages/torchvision/datasets/folder.py", line 309, in __init__
+    super().__init__(
+  File "/opt/mariett_team/MariettEnv/lib/python3.11/site-packages/torchvision/datasets/folder.py", line 144, in __init__
+    classes, class_to_idx = self.find_classes(self.root)
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/mariett_team/MariettEnv/lib/python3.11/site-packages/torchvision/datasets/folder.py", line 218, in find_classes
+    return find_classes(directory)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/mariett_team/MariettEnv/lib/python3.11/site-packages/torchvision/datasets/folder.py", line 40, in find_classes
+    classes = sorted(entry.name for entry in os.scandir(directory) if entry.is_dir())
+                                             ^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: 'data/tiny-imagenet-200/train'
+[2026-03-19 12:47:03] INFO - ============================================================
+[2026-03-19 12:47:03] INFO - EXPERIMENT: tiny_imagenet ResNet-18 (sew) Init=sabotage Plasticity=False base_ch=64 seed=42
+[2026-03-19 12:47:03] INFO - ============================================================
+Seed set to 42
+Traceback (most recent call last):
+  File "/media/samsung8T/Hafez/CARE-V1/scripts/run_flexible_experiment.py", line 245, in <module>
+    main()
+  File "/media/samsung8T/Hafez/CARE-V1/scripts/run_flexible_experiment.py", line 241, in main
+    run_experiment(args, results_dir)
+  File "/media/samsung8T/Hafez/CARE-V1/scripts/run_flexible_experiment.py", line 176, in run_experiment
+    train_loader, test_loader, in_channels, num_classes = get_dataloaders(
+                                                          ^^^^^^^^^^^^^^^^
+  File "/media/samsung8T/Hafez/CARE-V1/scripts/run_flexible_experiment.py", line 126, in get_dataloaders
+    train_ds = datasets.ImageFolder(str(tiny_path / 'train'), transform=transform_train)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/mariett_team/MariettEnv/lib/python3.11/site-packages/torchvision/datasets/folder.py", line 309, in __init__
+    super().__init__(
+  File "/opt/mariett_team/MariettEnv/lib/python3.11/site-packages/torchvision/datasets/folder.py", line 144, in __init__
+    classes, class_to_idx = self.find_classes(self.root)
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/mariett_team/MariettEnv/lib/python3.11/site-packages/torchvision/datasets/folder.py", line 218, in find_classes
+    return find_classes(directory)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/mariett_team/MariettEnv/lib/python3.11/site-packages/torchvision/datasets/folder.py", line 40, in find_classes
+    classes = sorted(entry.name for entry in os.scandir(directory) if entry.is_dir())
+                                             ^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: 'data/tiny-imagenet-200/train'
+======================================================================
+  CARE V3 - Rigorous Multi-Dataset Ablation Suite
+  Total experiments: 12
+  Output: results/v3_rigorous_ablation
+======================================================================
+
+>>> Experiment 1/12: fashion_mnist_normal_care_ablation
+
+======================================================================
+  CMD: /opt/mariett_team/MariettEnv/bin/python scripts/run_flexible_experiment.py --dataset fashion_mnist --init normal --name fashion_mnist_normal_care_ablation --epochs 30 --time_steps 8 --eta_stdp 0.001 --target_rate 0.02 --block sew --depth 18 --batch_size 64 --output_dir results/v3_rigorous_ablation
+======================================================================
+
+  [SUCCESS] fashion_mnist_normal_care_ablation  (48.6 min)
+
+>>> Experiment 2/12: fashion_mnist_normal_control_ablation
+
+======================================================================
+  CMD: /opt/mariett_team/MariettEnv/bin/python scripts/run_flexible_experiment.py --dataset fashion_mnist --init normal --name fashion_mnist_normal_control_ablation --epochs 30 --time_steps 8 --eta_stdp 0.001 --target_rate 0.02 --block sew --depth 18 --batch_size 64 --output_dir results/v3_rigorous_ablation --no_plasticity
+======================================================================
+
+  [SUCCESS] fashion_mnist_normal_control_ablation  (56.8 min)
+
+>>> Experiment 3/12: fashion_mnist_sabotage_care_ablation
+
+======================================================================
+  CMD: /opt/mariett_team/MariettEnv/bin/python scripts/run_flexible_experiment.py --dataset fashion_mnist --init sabotage --name fashion_mnist_sabotage_care_ablation --epochs 30 --time_steps 8 --eta_stdp 0.001 --target_rate 0.02 --block sew --depth 18 --batch_size 64 --output_dir results/v3_rigorous_ablation
+======================================================================
+
+  [SUCCESS] fashion_mnist_sabotage_care_ablation  (43.9 min)
+
+>>> Experiment 4/12: fashion_mnist_sabotage_control_ablation
+
+======================================================================
+  CMD: /opt/mariett_team/MariettEnv/bin/python scripts/run_flexible_experiment.py --dataset fashion_mnist --init sabotage --name fashion_mnist_sabotage_control_ablation --epochs 30 --time_steps 8 --eta_stdp 0.001 --target_rate 0.02 --block sew --depth 18 --batch_size 64 --output_dir results/v3_rigorous_ablation --no_plasticity
+======================================================================
+
+  [SUCCESS] fashion_mnist_sabotage_control_ablation  (43.9 min)
+
+>>> Experiment 5/12: cifar10_normal_care_ablation
+
+======================================================================
+  CMD: /opt/mariett_team/MariettEnv/bin/python scripts/run_flexible_experiment.py --dataset cifar10 --init normal --name cifar10_normal_care_ablation --epochs 30 --time_steps 8 --eta_stdp 0.001 --target_rate 0.02 --block sew --depth 18 --batch_size 64 --output_dir results/v3_rigorous_ablation
+======================================================================
+
+  [SUCCESS] cifar10_normal_care_ablation  (36.6 min)
+
+>>> Experiment 6/12: cifar10_normal_control_ablation
+
+======================================================================
+  CMD: /opt/mariett_team/MariettEnv/bin/python scripts/run_flexible_experiment.py --dataset cifar10 --init normal --name cifar10_normal_control_ablation --epochs 30 --time_steps 8 --eta_stdp 0.001 --target_rate 0.02 --block sew --depth 18 --batch_size 64 --output_dir results/v3_rigorous_ablation --no_plasticity
+======================================================================
+
+  [SUCCESS] cifar10_normal_control_ablation  (36.7 min)
+
+>>> Experiment 7/12: cifar10_sabotage_care_ablation
+
+======================================================================
+  CMD: /opt/mariett_team/MariettEnv/bin/python scripts/run_flexible_experiment.py --dataset cifar10 --init sabotage --name cifar10_sabotage_care_ablation --epochs 30 --time_steps 8 --eta_stdp 0.001 --target_rate 0.02 --block sew --depth 18 --batch_size 64 --output_dir results/v3_rigorous_ablation
+======================================================================
+
+  [SUCCESS] cifar10_sabotage_care_ablation  (35.9 min)
+
+>>> Experiment 8/12: cifar10_sabotage_control_ablation
+
+======================================================================
+  CMD: /opt/mariett_team/MariettEnv/bin/python scripts/run_flexible_experiment.py --dataset cifar10 --init sabotage --name cifar10_sabotage_control_ablation --epochs 30 --time_steps 8 --eta_stdp 0.001 --target_rate 0.02 --block sew --depth 18 --batch_size 64 --output_dir results/v3_rigorous_ablation --no_plasticity
+======================================================================
+
+  [SUCCESS] cifar10_sabotage_control_ablation  (35.2 min)
+
+>>> Experiment 9/12: tiny_imagenet_normal_care_ablation
+
+======================================================================
+  CMD: /opt/mariett_team/MariettEnv/bin/python scripts/run_flexible_experiment.py --dataset tiny_imagenet --init normal --name tiny_imagenet_normal_care_ablation --epochs 30 --time_steps 8 --eta_stdp 0.001 --target_rate 0.02 --block sew --depth 18 --batch_size 64 --output_dir results/v3_rigorous_ablation
+======================================================================
+
+  [FAILED (code 1)] tiny_imagenet_normal_care_ablation  (0.0 min)
+
+>>> Experiment 10/12: tiny_imagenet_normal_control_ablation
+
+======================================================================
+  CMD: /opt/mariett_team/MariettEnv/bin/python scripts/run_flexible_experiment.py --dataset tiny_imagenet --init normal --name tiny_imagenet_normal_control_ablation --epochs 30 --time_steps 8 --eta_stdp 0.001 --target_rate 0.02 --block sew --depth 18 --batch_size 64 --output_dir results/v3_rigorous_ablation --no_plasticity
+======================================================================
+
+  [FAILED (code 1)] tiny_imagenet_normal_control_ablation  (0.0 min)
+
+>>> Experiment 11/12: tiny_imagenet_sabotage_care_ablation
+
+======================================================================
+  CMD: /opt/mariett_team/MariettEnv/bin/python scripts/run_flexible_experiment.py --dataset tiny_imagenet --init sabotage --name tiny_imagenet_sabotage_care_ablation --epochs 30 --time_steps 8 --eta_stdp 0.001 --target_rate 0.02 --block sew --depth 18 --batch_size 64 --output_dir results/v3_rigorous_ablation
+======================================================================
+
+  [FAILED (code 1)] tiny_imagenet_sabotage_care_ablation  (0.0 min)
+
+>>> Experiment 12/12: tiny_imagenet_sabotage_control_ablation
+
+======================================================================
+  CMD: /opt/mariett_team/MariettEnv/bin/python scripts/run_flexible_experiment.py --dataset tiny_imagenet --init sabotage --name tiny_imagenet_sabotage_control_ablation --epochs 30 --time_steps 8 --eta_stdp 0.001 --target_rate 0.02 --block sew --depth 18 --batch_size 64 --output_dir results/v3_rigorous_ablation --no_plasticity
+======================================================================
+
+  [FAILED (code 1)] tiny_imagenet_sabotage_control_ablation  (0.0 min)
+
+======================================================================
+  ALL DONE! Total time: 337.8 min (5.6 hours)
+======================================================================
