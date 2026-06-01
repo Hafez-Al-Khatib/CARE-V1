@@ -275,7 +275,7 @@ def main():
     parser.add_argument("--target-rate", type=float, default=0.02)
     parser.add_argument("--batch-size", type=int, default=64)
     parser.add_argument("--base-channels", type=int, default=32)
-    parser.add_argument("--time-steps", type=int, default=8)
+    parser.add_argument("--time-steps", type=int, default=16)
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--num-workers", type=int, default=4)
