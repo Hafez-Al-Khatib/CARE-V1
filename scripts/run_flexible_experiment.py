@@ -68,7 +68,7 @@ def parse_args():
     parser.add_argument('--block', type=str, default='sew', choices=['sew', 'ms'])
     parser.add_argument('--name', type=str, default='experiment')
     parser.add_argument('--batch_size', type=int, default=64)
-    parser.add_argument('--time_steps', type=int, default=8)
+    parser.add_argument('--time_steps', type=int, default=16)
     parser.add_argument('--epochs', type=int, default=30)
     parser.add_argument('--no_plasticity', action='store_true', help='Disable homeostatic plasticity')
     parser.add_argument("--eta_stdp", type=float, default=0.005, help="Plasticity learning rate")

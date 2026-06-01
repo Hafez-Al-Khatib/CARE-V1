@@ -444,6 +444,11 @@ class CareLIFConv(nn.Module):
             in_channels, out_channels, kernel_size=kernel_size, stride=stride, padding=padding, bias=not use_bn
         )
         
+        # CRITICAL: Spiking neurons need positive bias to ensure baseline firing.
+        # PyTorch's default Uniform(-k, k) gives ~50% negative bias → dead neurons.
+        if self.conv.bias is not None:
+            nn.init.uniform_(self.conv.bias, 0.05, 0.15)
+        
         self.use_bn = use_bn
         if use_bn:
             self.bn = nn.BatchNorm2d(out_channels)  # Gradient Rescue: Pre-Activation BN

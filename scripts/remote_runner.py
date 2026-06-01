@@ -144,7 +144,7 @@ def build_cmd(exp: dict) -> list:
         "--depth", str(exp.get("depth", 18)),
         "--name", exp["name"],
         "--epochs", str(exp["epochs"]),
-        "--time_steps", str(exp.get("time_steps", 8)),
+        "--time_steps", str(exp.get("time_steps", 16)),
         "--eta_stdp", str(exp.get("eta_stdp", 0.005)),
         "--target_rate", str(exp.get("target_rate", 0.02)),
         "--lr", str(exp.get("lr", 1e-3)),
