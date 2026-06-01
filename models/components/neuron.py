@@ -446,8 +446,10 @@ class CareLIFConv(nn.Module):
         
         # CRITICAL: Spiking neurons need positive bias to ensure baseline firing.
         # PyTorch's default Uniform(-k, k) gives ~50% negative bias → dead neurons.
+        # Uniform(0.1, 0.3) ensures current > 0.1 for all neurons, which crosses
+        # threshold=1.0 within 16 timesteps with beta >= 0.9.
         if self.conv.bias is not None:
-            nn.init.uniform_(self.conv.bias, 0.05, 0.15)
+            nn.init.uniform_(self.conv.bias, 0.1, 0.3)
         
         self.use_bn = use_bn
         if use_bn:
@@ -531,6 +533,12 @@ class CareLIFConv(nn.Module):
             else:
                 # SNR gating disabled: always allow updates
                 final_gate = torch.ones_like(deviation)
+            
+            # CRITICAL FIX: Dead neurons bypass SNR gating entirely.
+            # SNR gating was designed to prevent over-stimulating noisy active neurons,
+            # but it also blocks rescue of silent neurons (SNR=0 → gate≈0).
+            dead_mask = (self.activity_trace < 0.001).float()
+            final_gate = dead_mask + (1.0 - dead_mask) * final_gate
             
             gate = torch.where(deviation > 0, final_gate, torch.ones_like(final_gate))
             
